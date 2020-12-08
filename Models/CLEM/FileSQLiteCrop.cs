@@ -29,7 +29,7 @@ namespace Models.CLEM
     [PresenterName("UserInterface.Presenters.PropertyPresenter")] 
     [ValidParent(ParentType = typeof(ZoneCLEM))]
     [ValidParent(ParentType = typeof(ActivityFolder))]
-    [Description("This model holds a crop data file from a APSIM SQLite database for the CLEM simulation.")]
+    [Description("This component specifies a crop data file as a table in an SQLite database for the CLEM simulation")]
     [Version(1, 0, 1, "")]
     [Version(1, 0, 2, "Added ability to define table and columns to use")]
     [HelpUri(@"Content/Features/DataReaders/CropDataReaderSQLite.htm")]
@@ -323,6 +323,8 @@ namespace Models.CLEM
             return cropdata;
         }
 
+        #region descriptive summary
+
         /// <summary>
         /// Provides the description of the model settings for summary (GetFullSummary)
         /// </summary>
@@ -403,7 +405,7 @@ namespace Models.CLEM
                     {
                         html += "<span class=\"setvalue\">" + AmountColumnName + "</span></div>";
                     }
-                    if(PercentNitrogenColumnName is null || PercentNitrogenColumnName == "")
+                    if (PercentNitrogenColumnName is null || PercentNitrogenColumnName == "")
                     {
                         html += "\n<div class=\"activityentry\">Column name for <span class=\"filelink\">Nitrogen</span> is <span class=\"setvalue\">NOT NEEDED</span></div>";
                     }
@@ -417,7 +419,8 @@ namespace Models.CLEM
             }
             return html;
 
-        }
+        } 
+        #endregion
     }
 
 }

@@ -34,7 +34,10 @@
             if (waterBalance is WaterModel.WaterBalance)
                 SetSoilWaterThickness(waterBalance as WaterModel.WaterBalance, targetThickness);
             if (weirdo != null)
-                weirdo.MapVariables(targetThickness);
+            {
+                weirdo.LayerThickness = targetThickness;
+                weirdo.MapVariables(physicalNode, targetThickness);
+            }
             SetAnalysisThickness(analysisNode, targetThickness);
             SetSoilOrganicMatterThickness(organic, targetThickness);
             SetWaterThickness(physicalNode, targetThickness, soil);
@@ -92,6 +95,7 @@
                     soilWater.SWCON = MapConcentration(soilWater.SWCON, soilWater.Thickness, thickness, 0.0);
 
                     soilWater.Thickness = thickness;
+                    soilWater.LayerThickness = thickness;
                 }
                 if (soilWater.SWCON == null)
                     soilWater.SWCON = MathUtilities.CreateArrayOfValues(0.3, soilWater.Thickness.Length);
@@ -209,7 +213,7 @@
             if (fromValues != null)
             {
                 if (fromValues.Length != fromThickness.Length)
-                    throw new Exception("In MapConcentraction, the number of values doesn't match the number of thicknesses.");
+                    throw new Exception($"In MapConcentration, the number of values ({fromValues.Length}) doesn't match the number of thicknesses ({fromThickness.Length}).");
                 if (fromValues == null || fromThickness == null)
                     return null;
 

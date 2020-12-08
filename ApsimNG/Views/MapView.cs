@@ -7,6 +7,7 @@
     using System.Drawing;
     using APSIM.Shared.Utilities;
     using System.Globalization;
+    using Interfaces;
     using Models;
     using SharpMap.Styles;
     using SharpMap.Layers;
@@ -18,10 +19,10 @@
     using NetTopologySuite.Geometries;
     using System.Linq;
     using System.Reflection;
-    using Interfaces;
     using Gtk;
     using Utility;
     using SharpMap.Data;
+    using SharpMap.Rendering;
     using Extensions;
 
 #if NETCOREAPP
@@ -105,13 +106,8 @@
         public event EventHandler ViewChanged;
 
         /// <summary>
-        /// Called when the user wants to preview docs.
+        /// Static constructor to perform 1-time initialisation.
         /// </summary>
-        /// <remarks>
-        /// Could be refactored out?
-        /// </remarks>
-        public event EventHandler PreviewDocs;
-
         static MapView()
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
@@ -154,7 +150,6 @@
 #else
             image.Drawn += OnImageExposed;
 #endif
-
             container.Destroyed += OnMainWidgetDestroyed;
             container.ScrollEvent += OnMouseScroll;
 
@@ -194,6 +189,9 @@
             countryNames.LabelColumn = "Name";
             countryNames.MultipartGeometryBehaviour = LabelLayer.MultipartGeometryBehaviourEnum.Largest;
             countryNames.Style = new LabelStyle();
+            countryNames.Style.CollisionDetection = true;
+            countryNames.Style.CollisionBuffer = new SizeF(5f, 5f);
+            countryNames.LabelFilter = LabelCollisionDetection.ThoroughCollisionDetection;
             //^countryNames.Style.BackColor = new SolidBrush(foreground);
             countryNames.Style.ForeColor = foreground;
             //countryNames.Style.Font = new Font(FontFamily.GenericSerif, 8);
@@ -366,7 +364,6 @@
                     double dx = lon - mouseAtDragStart.Longitude;
 
                     map.Center = new Coordinate(map.Center.X - dx, map.Center.Y - dy);
-                    Console.WriteLine($"Moving to (lat={map.Center.Y}, lon={map.Center.X})");
                     RefreshMap();
                     ViewChanged?.Invoke(this, EventArgs.Empty);
                 }
@@ -429,7 +426,8 @@
             {
                 // Update the map size iff the allocated width and height are both > 0,
                 // and width or height have changed.
-                if (image.Allocation.Width > 0 && image.Allocation.Height > 0
+                if (image != null && map != null &&
+                    image.Allocation.Width > 0 && image.Allocation.Height > 0
                  && (image.Allocation.Width != map.Size.Width || image.Allocation.Height != map.Size.Height) )
                 {
                     image.SizeAllocated -= OnSizeAllocated;

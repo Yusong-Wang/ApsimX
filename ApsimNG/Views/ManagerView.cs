@@ -45,7 +45,6 @@ namespace UserInterface.Views
                 propertyEditor = new PropertyView(this);
             else
                 propertyEditor = new GridView(this);
-
             scriptEditor = new EditorView(this)
             {
 #if NETCOREAPP
@@ -64,7 +63,7 @@ namespace UserInterface.Views
             {
                 propertyEditor.MainWidget.Cleanup();
                 propertyEditor = null;
-                ((ViewBase)scriptEditor).MainWidget.Cleanup();
+                (scriptEditor as ViewBase)?.MainWidget?.Cleanup();
                 scriptEditor = null;
                 mainWidget.Destroyed -= _mainWidget_Destroyed;
                 owner = null;

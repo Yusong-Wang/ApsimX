@@ -43,6 +43,9 @@ namespace Utility
         private IModel replaceNode;
         private ExplorerView owningView;
         private ExplorerPresenter explorerPresenter;
+        private ScrolledWindow scroller;
+        private VBox vbox1;
+        VBox dialogVBox;
 
         /// <summary>
         /// URI for accessing the Google geocoding API. I know the key shouldn't be placed on Github, but I'm not overly concerned.
@@ -56,6 +59,10 @@ namespace Utility
         {
             Builder builder = ViewBase.BuilderFromResource("ApsimNG.Resources.Glade.WeatherDownload.glade");
             dialog1 = (Dialog)builder.GetObject("dialog1");
+            vbox1 = (VBox)builder.GetObject("vbox1");
+            dialogVBox = (VBox)builder.GetObject("dialog-vbox1");
+            scroller = (ScrolledWindow)builder.GetObject("scrolledwindow1");
+            scroller.SizeAllocated += OnSizeAllocated;
             radioAus = (RadioButton)builder.GetObject("radioAus");
             radioWorld = (RadioButton)builder.GetObject("radioWorld");
             entryLatitude = (Entry)builder.GetObject("entryLatitude");
@@ -83,6 +90,23 @@ namespace Utility
             btnBrowse.Clicked += BtnBrowse_Clicked;
         }
 
+        private void OnSizeAllocated(object o, SizeAllocatedArgs args)
+        {
+            try
+            {
+                if (vbox1.Allocation.Height > 1 && vbox1.Allocation.Width > 1)
+                {
+                    dialog1.DefaultHeight = vbox1.Allocation.Height + dialogVBox.Allocation.Height;
+                    dialog1.DefaultWidth = vbox1.Allocation.Width + 20;
+                    scroller.SizeAllocated -= OnSizeAllocated;
+                }
+            }
+            catch (Exception err)
+            {
+                explorerPresenter.MainPresenter.ShowError(err);
+            }
+        }
+
         private void BtnBrowse_Clicked(object sender, EventArgs e)
         {
             try
@@ -101,8 +125,7 @@ namespace Utility
 
         private void ShowMessage(MessageType type, string msg, string title)
         {
-            MessageDialog md = new MessageDialog(owningView.MainWidget.Toplevel as Window, DialogFlags.Modal, type, ButtonsType.Ok,
-                               msg);
+            MessageDialog md = new MessageDialog(dialog1, DialogFlags.Modal, type, ButtonsType.Ok, msg);
             md.Title = title;
             md.Run();
             md.Cleanup();
@@ -166,8 +189,8 @@ namespace Utility
                         explorerPresenter.CommandHistory.Add(command, true);
                         explorerPresenter.Refresh();
                     }
-                    dialog1.Cleanup();
                 }
+                dialog1.Cleanup();
             }
             catch (Exception err)
             {
@@ -537,6 +560,7 @@ namespace Utility
                         list.AppendValues(lineInfo);
                     }
                     tree.Model = list;
+                    tree.RowActivated += OnPatchPointSoilSelected;
 #if NETFRAMEWORK
                     Box box = md.VBox;
 #else
@@ -586,6 +610,23 @@ namespace Utility
                 ShowMessage(MessageType.Error, err.Message, "Error");
             }
             return newWeatherPath;
+        }
+
+        private void OnPatchPointSoilSelected(object sender, RowActivatedArgs args)
+        {
+            try
+            {
+                if (sender is Gtk.TreeView tree)
+                {
+                    tree.RowActivated -= OnPatchPointSoilSelected;
+                    if (tree.Toplevel is Dialog dialog)
+                        dialog.Respond(ResponseType.Ok);
+                }
+            }
+            catch (Exception err)
+            {
+                ShowMessage(MessageType.Error, err.Message, "Error");
+            }
         }
 
         public string GetNasaChirps()

@@ -85,7 +85,8 @@
         /// <param name="atype">Data type for which we want completion options.</param>
         /// <param name="properties">If true, property suggestions will be generated.</param>
         /// <param name="methods">If true, method suggestions will be generated.</param>
-        /// <param name="events">If true, event suggestions will be generated.</param>
+        /// <param name="publishedEvents">If true, published events will be returned.</param>
+        /// <param name="subscribedEvents">If true, subscribed events will be returned.</param>
         /// <returns>List of completion options.</returns>
         public static List<ContextItem> ExamineTypeForContextItems(Type atype, bool properties, bool methods, bool publishedEvents, bool subscribedEvents)
         {
@@ -117,7 +118,8 @@
                 {
                     foreach (MethodInfo method in atype.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy))
                     {
-                        if (!method.Name.StartsWith("get_") && !method.Name.StartsWith("set_"))
+                        if (!method.Name.StartsWith("get_") && !method.Name.StartsWith("set_") &&
+                            !method.Name.StartsWith("add_") && !method.Name.StartsWith("remove_"))
                         {
                             ContextItem item = new ContextItem
                             {
@@ -141,7 +143,7 @@
                                     ParameterInfo parameter = allparams[p];
                                     paramText.Append(parameter.ParameterType.Name + " " + parameter.Name);
                                     if (parameter.DefaultValue != DBNull.Value)
-                                        paramText.Append(" = " + parameter.DefaultValue.ToString());
+                                        paramText.Append(" = " + parameter.DefaultValue?.ToString() ?? "null");
                                     if (p < allparams.Count() - 1)
                                         paramText.Append(", ");
                                 }
@@ -203,7 +205,8 @@
         /// <param name="o">Fully- or partially-qualified object name for which we want completion options.</param>
         /// <param name="properties">If true, property suggestions will be generated.</param>
         /// <param name="methods">If true, method suggestions will be generated.</param>
-        /// <param name="events">If true, event suggestions will be generated.</param>
+        /// <param name="publishedEvents">If true, published events will be returned.</param>
+        /// <param name="subscribedEvents">If true, subscribed events will be returned.</param>
         /// <returns>List of completion options.</returns>
         private static List<ContextItem> ExamineObjectForContextItems(object o, bool properties, bool methods, bool publishedEvents, bool subscribedEvents)
         {
@@ -294,11 +297,10 @@
         /// </summary>
         /// <param name="relativeTo">Model that the string is relative to.</param>
         /// <param name="objectName">Name of the model that we want context items for.</param>
-        /// <param name="properties">Include properties?</param>
-        /// <param name="methods">Include methods?</param>
-        /// <param name="publishedEvents">Include published events?</param>
-        /// <param name="subscribedEvents">Include subscribed events?</param>
-        /// <returns></returns>
+        /// <param name="properties">Search for properties of the model?</param>
+        /// <param name="methods">Search for methods of the model?</param>
+        /// <param name="publishedEvents">If true, published events will be returned.</param>
+        /// <param name="subscribedEvents">If true, subscribed events will be returned.</param>
         public static List<ContextItem> ExamineModelForContextItemsV2(Model relativeTo, string objectName, bool properties, bool methods, bool publishedEvents, bool subscribedEvents)
         {
             List<ContextItem> contextItems = new List<ContextItem>();

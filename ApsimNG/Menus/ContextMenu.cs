@@ -91,8 +91,8 @@
             try
             {
                 Runner runner = new Runner(explorerPresenter.ApsimXFile, runSimulations: false, wait: false);
-                ICommand command = new RunCommand("Post-simulation tools", runner, explorerPresenter);
-                command.Do(null);
+                RunCommand command = new RunCommand("Post-simulation tools", runner, explorerPresenter);
+                command.Do();
             }
             catch (Exception err)
             {
@@ -425,7 +425,7 @@
                 Model model = this.explorerPresenter.ApsimXFile.FindByPath(this.explorerPresenter.CurrentNodePath)?.Value as Model;
                 var runner = new Runner(model, runType:typeOfRun, wait: false);
                 this.command = new RunCommand(model.Name, runner, this.explorerPresenter);
-                this.command.Do(null);
+                this.command.Do();
             }
         }
 
@@ -477,11 +477,12 @@
         {
             try
             {
-                object model = explorerPresenter.ApsimXFile.FindByPath(explorerPresenter.CurrentNodePath)?.Value;
-                explorerPresenter.HideRightHandPanel();
-                explorerPresenter.ShowInRightHandPanel(model,
-                                                       "ApsimNG.Resources.Glade.DownloadSoilView.glade",
-                                                       new DownloadPresenter());
+                throw new NotImplementedException();
+                // object model = explorerPresenter.ApsimXFile.FindByPath(explorerPresenter.CurrentNodePath)?.Value;
+                // explorerPresenter.HideRightHandPanel();
+                // explorerPresenter.ShowInRightHandPanel(model,
+                //                                        "ApsimNG.Resources.Glade.DownloadSoilView.glade",
+                //                                        new DownloadPresenter());
             }
             catch (Exception err)
             {
@@ -739,7 +740,7 @@
         public bool ShowModelStructureChecked()
         {
             IModel model = explorerPresenter.ApsimXFile.FindByPath(explorerPresenter.CurrentNodePath)?.Value as IModel;
-            if (model.Children.Count < 1)
+            if (model != null && model.Children.Count < 1)
                 return true;
             return !model.Children[0].IsHidden;
         }
@@ -857,15 +858,13 @@
                     explorerPresenter.MainPresenter.ShowMessage("Creating documentation...", Simulation.MessageType.Information);
                     explorerPresenter.MainPresenter.ShowWaitCursor(true);
 
-                    ICommand command;
-                    string fileNameWritten;
                     var modelToDocument = explorerPresenter.ApsimXFile.FindByPath(explorerPresenter.CurrentNodePath)?.Value as IModel;
 
                     var destinationFolder = Path.GetDirectoryName(explorerPresenter.ApsimXFile.FileName);
-                    command = new CreateFileDocumentationCommand(explorerPresenter, destinationFolder);
-                    fileNameWritten = (command as CreateFileDocumentationCommand).FileNameWritten;
+                    CreateFileDocumentationCommand command = new CreateFileDocumentationCommand(explorerPresenter, destinationFolder);
+                    string fileNameWritten = command.FileNameWritten;
 
-                    explorerPresenter.CommandHistory.Add(command, true);
+                    command.Do();
                     explorerPresenter.MainPresenter.ShowMessage("Written " + fileNameWritten, Simulation.MessageType.Information);
 
                     // Open the document.
