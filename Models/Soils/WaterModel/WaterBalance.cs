@@ -68,13 +68,13 @@
         [Link(Type = LinkType.Child, ByName = true)]
         private RunoffModel runoffModel = null;
 
-        /// <summary>Link to the saturated flow model.</summary>
-        [Link]
-        private SaturatedFlowModel saturatedFlow = null;
+        ///// <summary>Link to the saturated flow model.</summary>
+        //[Link]
+        //private SaturatedFlowModel saturatedFlow = null;
 
-        /// <summary>Link to the unsaturated flow model.</summary>
-        [Link]
-        private UnsaturatedFlowModel unsaturatedFlow = null;
+        ///// <summary>Link to the unsaturated flow model.</summary>
+        //[Link]
+        //private UnsaturatedFlowModel unsaturatedFlow = null;
 
         /// <summary>Link to the evaporation model.</summary>
         [Link]
@@ -418,6 +418,64 @@
             }
         }
 
+        // --- Variables for new module --------------------------------------------------
+
+        // Constants
+        const double effpar = 0.184;
+
+        // Units in mm
+        const double psi_ll15 = -150000.0;
+        const double psiad = -1e7;
+        const double psi0 = -0.6e8;
+
+        /// <summary>Number of soil layers.</summary>
+        private int num_layers { get { return soilPhysical.Thickness.Length; } }
+        private double[] psid;
+
+        // Intermediate variables for soil hydraulic curves
+        private double[,] DELk;
+        private double[,] Mk;
+        private double[,] M0;
+        private double[,] M1;
+        private double[,] Y0;
+        private double[,] Y1;
+        private double[] MicroP;
+        private double[] MicroKs;
+        private double[] Kdula;
+        private double[] kdul;
+        private double[] MacroP;
+
+        // Parameters at quadrature points
+        // Consider encapsulate all parameters in a class/struct
+        private string QuadratureRule;
+        private int num_Qpoints;
+        private double[,] QDepth;
+        private double[,] QWeight;
+        private double[,] QTheta;
+        private double[,] Qpsi;
+        private double[,] QK;
+
+        private double[] OldSW;
+        private double[] InterfaceFlow;
+        private int[] FlowType;
+
+
+        /// <summary>
+        /// Gets the hydraulic conductivity at DUL (mm/d)
+        /// </summary>
+        [Description("Hydraulic conductivity at DUL (mm/d)")]
+        [Units("mm/d")]
+        [Bounds(Lower = 0.0, Upper = 10.0)]
+        public double KDul { get; set; }
+
+        /// <summary>
+        /// Gets the matric Potential at DUL (cm)
+        /// </summary>
+        [Description("Matric Potential at DUL (cm)")]
+        [Units("cm")]
+        [Bounds(Lower = -1e3, Upper = 0.0)]
+        public double PSIDul { get; set; }
+
         // --- Event handlers ------------------------------------------------------------
 
         /// <summary>Called when a simulation commences.</summary>
@@ -427,6 +485,7 @@
         private void OnStartOfSimulation(object sender, EventArgs e)
         {
             Initialise();
+            InitCalc();
         }
 
         /// <summary>Called on start of day.</summary>
@@ -465,7 +524,34 @@
             // Calculate infiltration.
             Infiltration = PotentialInfiltration - Runoff;
 
-            Water[0] = Water[0] + Infiltration + Runon;
+            // Test calculating hydraulic parameters
+            //double p;
+            //p = Convert.ToDouble(System.Console.ReadLine());
+
+            //for (int layer = 0; layer < num_layers; ++layer)
+            //{                
+            //    double theta = SimpleTheta(layer, -p);
+            //    double K = SimpleK(layer, -p);
+            //    System.Console.WriteLine(layer + "    theta: " + theta + ",  K: "+ K);
+            //}
+
+            // Redistribute water within each layer
+            Redistribute();
+
+            // Calculate watermovement
+            WaterFlow();
+
+            Flux = new double[num_layers];
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                Flux[layer] = InterfaceFlow[layer + 1];
+            }
+
+            Water[0] = Water[0] + InterfaceFlow[0] + Runon;
+
+            Runoff += Infiltration - InterfaceFlow[0];
+            Infiltration = Math.Max(0.0, InterfaceFlow[0]);
+                
 
             // Allow irrigation to infiltrate.
             foreach (var irrigation in irrigations)
@@ -473,9 +559,9 @@
                 if (irrigation.Amount > 0)
                 {
                     int irrigationLayer = SoilUtilities.LayerIndexOfDepth(soilPhysical.Thickness, Convert.ToInt32(irrigation.Depth, CultureInfo.InvariantCulture));
-                    Water[irrigationLayer] += irrigation.Amount;
-                    if (irrigationLayer == 0)
-                        Infiltration += irrigation.Amount;
+                    //Water[irrigationLayer] += irrigation.Amount;
+                    //if (irrigationLayer == 0)
+                    //    Infiltration += irrigation.Amount;
 
                     if (no3 != null)
                         no3.kgha[irrigationLayer] += irrigation.NO3;
@@ -489,16 +575,16 @@
             }
 
             // Saturated flow.
-            Flux = saturatedFlow.Values;
+            //Flux = saturatedFlow.Values;
 
             // Add backed up water to runoff. 
-            Water[0] = Water[0] - saturatedFlow.backedUpSurface;
+            //Water[0] = Water[0] - saturatedFlow.backedUpSurface;
 
             // Now reduce the infiltration amount by what backed up.
-            Infiltration = Infiltration - saturatedFlow.backedUpSurface;
+            //Infiltration = Infiltration - saturatedFlow.backedUpSurface;
 
             // Turn the proportion of the infiltration that backed up into runoff.
-            Runoff = Runoff + saturatedFlow.backedUpSurface;
+            //Runoff = Runoff + saturatedFlow.backedUpSurface;
 
             // Should go to pond if one exists.
             //  pond = Math.Min(Runoff, max_pond);
@@ -518,8 +604,8 @@
             Water[0] = Water[0] - es;
 
             // Calculate unsaturated flow of water and apply.
-            Flow = unsaturatedFlow.Values;
-            MoveUp(Water, Flow);
+            //Flow = unsaturatedFlow.Values;
+            //MoveUp(Water, Flow);
 
             // Check for errors in water variables.
             //CheckForErrors();
@@ -527,15 +613,15 @@
             // Calculate water table depth.
             waterTableModel.Calculate();
 
-            // Calculate and apply net solute movement.
-            double[] no3Up = CalculateNetSoluteMovement(no3Values, Water, Flow, SoluteFlowEfficiency);
-            MoveUp(no3Values, no3Up);
-            double[] ureaUp = CalculateNetSoluteMovement(ureaValues, Water, Flow, SoluteFlowEfficiency);
-            MoveUp(ureaValues, ureaUp);
+            //// Calculate and apply net solute movement.
+            //double[] no3Up = CalculateNetSoluteMovement(no3Values, Water, Flow, SoluteFlowEfficiency);
+            //MoveUp(no3Values, no3Up);
+            //double[] ureaUp = CalculateNetSoluteMovement(ureaValues, Water, Flow, SoluteFlowEfficiency);
+            //MoveUp(ureaValues, ureaUp);
 
-            // Update flow output variables.
-            FlowNO3 = MathUtilities.Subtract(no3Down, no3Up);
-            FlowUrea = MathUtilities.Subtract(ureaDown, ureaUp);
+            //// Update flow output variables.
+            //FlowNO3 = MathUtilities.Subtract(no3Down, no3Up);
+            //FlowUrea = MathUtilities.Subtract(ureaDown, ureaUp);
 
             // Set solute state variables.
             no3.SetKgHa(SoluteSetterType.Soil, no3Values);
@@ -818,6 +904,466 @@
         public void Tillage(string tillageType)
         {
             throw new NotImplementedException();
+        }
+
+
+        /// Interpolate hydraulic parameters from APSIMX inputs
+        /// Code based on SWIM
+        /// TODO: fix layer and node
+
+        ///<summary>Perform initial calculations for hydraulic curves</summary>
+        private void InitCalc()
+        {
+            //+  Purpose
+            //   Perform initial calculations from input parameters and prepare for simulation
+
+            // change units of params to normal SWIM units
+            // ie. cm and hours etc.
+            //InitChangeUnits();
+
+            // ------------------- CALCULATE CURRENT TIME -------------------------
+            //int time_mins = TimeToMins(apsim_time);
+            //t = Time(year, day, time_mins);
+
+            // ----------------- SET UP NODE SPECIFICATIONS -----------------------
+
+            // safer to use number returned from read routine
+            //int num_layers = soilPhysical.Thickness.Length;
+            //if (n != num_layers - 1)
+            //    ResizeProfileArrays(num_layers);
+
+            //for (int i = 0; i <= n; i++)
+            //    dx[i] = soilPhysical.Thickness[i] / 10.0;
+
+            //x[0] = 0.0;
+            //x[1] = 2.0 * dx[0] + x[0];
+
+            //for (int i = 1; i < n; i++)
+            //    x[i] = MathUtilities.Sum(dx, 0, i - 1) + dx[i] / 2;
+
+            //x[n] = MathUtilities.Sum(dx);
+
+            //      p%dx(0) = 0.5*(p%x(1) - p%x(0))
+            //      do 10 i=1,p%n-1
+            //         p%dx(i) = 0.5*(p%x(i+1)-p%x(i-1))
+            //   10 continue
+            //      p%dx(p%n) = 0.5*(p%x(p%n)-p%x(p%n-1))
+
+
+            // ------- IF USING SIMPLE SOIL SPECIFICATION CALCULATE PROPERTIES -----
+
+            DELk = new double[num_layers, 4];
+            Mk = new double[num_layers, 4];
+            M0 = new double[num_layers, 5];
+            M1 = new double[num_layers, 5];
+            Y0 = new double[num_layers, 5];
+            Y1 = new double[num_layers, 5];
+            MicroP = new double[num_layers];
+            MicroKs = new double[num_layers];
+            kdul = new double[num_layers];
+            Kdula = new double[num_layers];
+            MacroP = new double[num_layers];
+            psid = new double[num_layers];
+
+            InterfaceFlow = new double[num_layers + 1];
+            FlowType = new int[num_layers + 1];
+            OldSW = new double[num_layers];
+
+            PSIDul = -100.0;
+            KDul = 0.1;
+
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                kdul[layer] = 1.0;
+            }
+
+            SetupThetaCurve();
+            SetupKCurve();
+
+            QuadratureRule = "Gaussian";
+            num_Qpoints = 3;
+
+            InitQuadrature(QuadratureRule, num_Qpoints);       
+        }
+
+        private void SetupThetaCurve()
+        {
+            for (int layer = 0; layer < num_layers; layer++)
+            {
+                psid[layer] = PSIDul;  //- (p%x(p%n) - p%x(layer))
+
+                DELk[layer, 0] = (soilPhysical.DUL[layer] - soilPhysical.SAT[layer]) / (Math.Log10(-psid[layer]));
+                DELk[layer, 1] = (soilPhysical.LL15[layer] - soilPhysical.DUL[layer]) / (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+                DELk[layer, 2] = -soilPhysical.LL15[layer] / (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+                DELk[layer, 3] = -soilPhysical.LL15[layer] / (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+
+                Mk[layer, 0] = 0.0;
+                Mk[layer, 1] = (DELk[layer, 0] + DELk[layer, 1]) / 2.0;
+                Mk[layer, 2] = (DELk[layer, 1] + DELk[layer, 2]) / 2.0;
+                Mk[layer, 3] = DELk[layer, 3];
+
+                // First bit might not be monotonic so check and adjust
+                double alpha = Mk[layer, 0] / DELk[layer, 0];
+                double beta = Mk[layer, 1] / DELk[layer, 0];
+                double phi = alpha - (Math.Pow(2.0 * alpha + beta - 3.0, 2.0) / (3.0 * (alpha + beta - 2.0)));
+                if (phi <= 0)
+                {
+                    double tau = 3.0 / Math.Sqrt(alpha * alpha + beta * beta);
+                    Mk[layer, 0] = tau * alpha * DELk[layer, 0];
+                    Mk[layer, 1] = tau * beta * DELk[layer, 0];
+                }
+
+                M0[layer, 0] = 0.0;
+                M1[layer, 0] = 0.0;
+                Y0[layer, 0] = soilPhysical.SAT[layer];
+                Y1[layer, 0] = soilPhysical.SAT[layer];
+
+                M0[layer, 1] = Mk[layer, 0] * (Math.Log10(-psid[layer]) - 0.0);
+                M1[layer, 1] = Mk[layer, 1] * (Math.Log10(-psid[layer]) - 0.0);
+                Y0[layer, 1] = soilPhysical.SAT[layer];
+                Y1[layer, 1] = soilPhysical.DUL[layer];
+
+                M0[layer, 2] = Mk[layer, 1] * (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+                M1[layer, 2] = Mk[layer, 2] * (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+                Y0[layer, 2] = soilPhysical.DUL[layer];
+                Y1[layer, 2] = soilPhysical.LL15[layer];
+
+                M0[layer, 3] = Mk[layer, 2] * (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+                M1[layer, 3] = Mk[layer, 3] * (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+                Y0[layer, 3] = soilPhysical.LL15[layer];
+                Y1[layer, 3] = 0.0;
+
+                M0[layer, 4] = 0.0;
+                M1[layer, 4] = 0.0;
+                Y0[layer, 4] = 0.0;
+                Y1[layer, 4] = 0.0;
+            }
+        }
+
+        private void SetupKCurve()
+        {
+            for (int layer = 0; layer < num_layers; layer++)
+            {
+                double b = -Math.Log(PSIDul / psi_ll15) / Math.Log(soilPhysical.DUL[layer] / soilPhysical.LL15[layer]);
+                MicroP[layer] = b * 2.0 + 3.0;
+                Kdula[layer] = Math.Min(0.99 * kdul[layer], soilPhysical.KS[layer]);
+                MicroKs[layer] = Kdula[layer] / Math.Pow(soilPhysical.DUL[layer] / soilPhysical.SAT[layer], MicroP[layer]);
+
+                double Sdul = soilPhysical.DUL[layer] / soilPhysical.SAT[layer];
+                MacroP[layer] = Math.Log10(Kdula[layer] / 99.0 / (soilPhysical.KS[layer] - MicroKs[layer])) / Math.Log10(Sdul);
+            }
+        }
+
+        private double Suction(int node, double theta)
+        {
+            //  Purpose
+            //   Calculate the suction for a given water content for a given node.
+            const int maxIterations = 1000;
+            const double tolerance = 1e-9;
+            const double dpsi = 0.01;
+
+            if (theta == soilPhysical.SAT[node])
+                return 0.0;
+            else
+            {
+                double psiValue = -100.0; // Initial estimate
+                for (int iter = 0; iter < maxIterations; iter++)
+                {
+                    double est = SimpleTheta(node, psiValue);
+                    double m = (SimpleTheta(node, psiValue + dpsi) - est) / dpsi;
+
+                    if (Math.Abs(est - theta) < tolerance)
+                        break;
+                    psiValue -= Math.Min(-dpsi, (est - theta) / m);
+                }
+                return psiValue;
+            }
+        }
+
+        private double SimpleS(int layer, double psiValue)
+        {
+            //  Purpose
+            //      Calculate S for a given node for a specified suction.
+            return SimpleTheta(layer, psiValue) / soilPhysical.SAT[layer];
+        }
+
+        private double SimpleTheta(int layer, double psiValue)
+        {
+            //  Purpose
+            //     Calculate Theta for a given node for a specified suction.
+            int i;
+            double t;
+
+            if (psiValue >= -1.0)
+            {
+                i = 0;
+                t = 0.0;
+            }
+            else if (psiValue > psid[layer])
+            {
+                i = 1;
+                t = (Math.Log10(-psiValue) - 0.0) / (Math.Log10(-psid[layer]) - 0.0);
+            }
+            else if (psiValue > psi_ll15)
+            {
+                i = 2;
+                t = (Math.Log10(-psiValue) - Math.Log10(-psid[layer])) / (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+            }
+            else if (psiValue > psi0)
+            {
+                i = 3;
+                t = (Math.Log10(-psiValue) - Math.Log10(-psi_ll15)) / (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+            }
+            else
+            {
+                i = 4;
+                t = 0.0;
+            }
+
+            double tSqr = t * t;
+            double tCube = tSqr * t;
+
+            return (2 * tCube - 3 * tSqr + 1) * Y0[layer, i] + (tCube - 2 * tSqr + t) * M0[layer, i]
+                    + (-2 * tCube + 3 * tSqr) * Y1[layer, i] + (tCube - tSqr) * M1[layer, i];
+        }
+
+        private void Interp(int node, double tpsi, out double tth, out double thd, out double hklg, out double hklgd)
+        {
+            //  Purpose
+            //   interpolate water characteristics for given potential for a given
+            //   node.
+
+            const double dpsi = 0.0001;
+            double temp;
+
+            tth = SimpleTheta(node, tpsi);
+            temp = SimpleTheta(node, tpsi + dpsi);
+            thd = (temp - tth) / Math.Log10((tpsi + dpsi) / tpsi);
+            hklg = Math.Log10(SimpleK(node, tpsi));
+            temp = Math.Log10(SimpleK(node, tpsi + dpsi));
+            hklgd = (temp - hklg) / Math.Log10((tpsi + dpsi) / tpsi);
+        }
+
+        private double SimpleK(int layer, double psiValue)
+        {
+            //  Purpose
+            //      Calculate Conductivity for a given node for a specified suction.
+
+            double S = SimpleS(layer, psiValue);
+            double simpleK;
+
+            if (S <= 0.0)
+                simpleK = 1e-100;
+            else
+            {
+                double microK = MicroKs[layer] * Math.Pow(S, MicroP[layer]);
+
+                if (MicroKs[layer] >= soilPhysical.KS[layer])
+                    simpleK = microK;
+                else
+                {
+                    double macroK = (soilPhysical.KS[layer] - MicroKs[layer]) * Math.Pow(S, MacroP[layer]);
+                    simpleK = microK + macroK;
+                }
+            }
+            return simpleK;
+            //return simpleK / 24.0 / 10.0;
+        }
+
+        private double Theta(int node, double suction)
+        {
+            double theta;
+            double thd;
+            double hklg;
+            double hklgd;
+
+            Interp(node, suction, out theta, out thd, out hklg, out hklgd);
+            return theta;
+        }
+
+        /// <summary>
+        /// Setup quadrature points for each layer. Default is 3 points Gaussian quadrature.
+        /// </summary>
+        private void InitQuadrature(string quadrature_rule = "Gaussian", int num_points = 3)
+        {
+            double[] y;
+            double[] weight;
+            y = new double[num_points];
+            weight = new double[num_points];
+
+            QDepth = new double[num_layers, num_points];
+            QWeight = new double[num_layers, num_points];
+            QTheta = new double[num_layers, num_points];
+            QK = new double[num_layers, num_points];
+            Qpsi = new double[num_layers, num_points];
+
+            if (quadrature_rule == "Gaussian")
+            {
+                if (num_points == 3)
+                {
+                    y[0] = (1 - Math.Sqrt(3.0 / 5.0)) / 2.0;
+                    y[1] = 1.0 / 2.0;
+                    y[2] = (1 + Math.Sqrt(3.0 / 5.0)) / 2.0;
+                    weight[0] = 5.0 / 9.0;
+                    weight[1] = 8.0 / 9.0;
+                    weight[2] = 5.0 / 9.0;
+
+                    for (int layer = 0; layer < num_layers; ++layer)
+                    {
+                        for (int point = 0; point < num_points; ++point)
+                        {
+                            QTheta[layer, point] = SW[layer];
+                            Qpsi[layer, point] = Suction(layer, QTheta[layer, point]);
+                            QK[layer, point] = SimpleK(layer, Qpsi[layer, point]);
+                            QDepth[layer, point] = soilPhysical.ThicknessCumulative[layer] + (y[point] - 1) * soilPhysical.Thickness[layer];
+                            QWeight[layer, point] = weight[point];
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary> Calculate water flow at each interface.</summary>
+        private void WaterFlow()
+        {
+            // Check flow types at each interfaces
+            double[] OldFlow = new double[num_layers + 1];
+            double[] NewFlow = new double[num_layers + 1];
+            double[] Source = new double[num_layers];
+            double[] BackFlow = new double[num_layers];
+            bool[] is_Saturated = new bool[num_layers];
+            double MaxFlow = 0.0;
+            double ExcessW = 0.0;
+
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                OldSW[layer] = SW[layer];
+                is_Saturated[layer] = false;
+                Source[layer] = 0.0;
+                BackFlow[layer] = 0.0;
+            }
+
+            for (int n_interface = 0; n_interface <= num_layers; ++n_interface)
+            {
+                FlowType[n_interface] = 0;
+                InterfaceFlow[n_interface] = 0.0;
+            }
+
+            // Check for sources in the profile, e.g. subsurface irrigation
+            // TODO: need to consider subsurface irrigation in the first layer. Use -1 for surface irrigation and 
+            foreach (var irrigation in irrigations)
+            {
+                if (irrigation.Amount > 0)
+                {
+                    int irrigationLayer = SoilUtilities.LayerIndexOfDepth(soilPhysical.Thickness, Convert.ToInt32(irrigation.Depth, CultureInfo.InvariantCulture));
+                    if (irrigationLayer == 0)
+                        Infiltration += irrigation.Amount;
+                    else
+                    {
+                        Source[irrigationLayer] += irrigation.Amount;
+                    }
+                }
+            }
+
+            // TODO: compare infiltration with potential evaporation and subtract one from another
+
+            // TODO: drainage boundary assumed for the bottom; add other possibilities.
+
+            if (Infiltration > 0.0)
+            {
+                MaxFlow = QK[0, 0] * ((Pond - (Qpsi[0, 0]) / QDepth[0, 0] + 1));
+                MaxFlow = Math.Max(MaxFlow, soilPhysical.KS[0]);
+                InterfaceFlow[0] = Math.Min(MaxFlow, Infiltration);
+                FlowType[0] = 1;
+            }
+            
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                if (layer == num_layers -1)
+                {
+                    InterfaceFlow[layer + 1] = (QK[layer, 2]);
+                }
+                else
+                {
+                    InterfaceFlow[layer + 1] = (QK[layer, 2] + QK[layer + 1, 0]) / 2
+                                           * ((Qpsi[layer, 2] - Qpsi[layer + 1, 0]) / (QDepth[layer + 1, 0] - QDepth[layer, 2]) + 1);
+                    InterfaceFlow[layer + 1] = Math.Min(InterfaceFlow[layer + 1], (QK[layer, 2] + QK[layer + 1, 0]));
+                }
+                
+                // TODO: make sure enough water is available to flow out from the region.
+                ExcessW = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
+
+                if(ExcessW > 0.0)
+                {
+                    is_Saturated[layer] = true;
+                    if (layer != 0 & FlowType[layer] == 0)
+                    {
+                        InterfaceFlow[layer] = (QK[layer - 1, 2])
+                                               * ((Qpsi[layer - 1, 2] - 0.0) / (soilPhysical.ThicknessCumulative[layer - 1] - QDepth[layer - 1, 2]) + 1);
+                    }
+                    ExcessW = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
+                }
+
+                if (layer != num_layers - 1)
+                    MaxFlow = 2 * soilPhysical.KS[layer + 1];
+                else
+                    MaxFlow = 2 * soilPhysical.KS[layer];
+
+                if ( ExcessW > MaxFlow)
+                {
+                    InterfaceFlow[layer + 1] = MaxFlow;
+                    BackFlow[layer] = ExcessW - MaxFlow;
+                }
+                else if (ExcessW > InterfaceFlow[layer + 1])
+                {
+                    InterfaceFlow[layer + 1] = ExcessW;
+                }
+
+            }
+
+            for (int layer = num_layers - 1; layer >= 0; --layer)
+            {
+                if (is_Saturated[layer])
+                {
+                    if (layer == num_layers - 1)
+                    {
+                        BackFlow[layer] = 0;
+                    }
+                    else
+                    {
+                        BackFlow[layer] = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
+                    }
+                    
+                    InterfaceFlow[layer] -= BackFlow[layer];
+                }
+                else
+                {
+                    // check if saturated
+                    ExcessW = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
+                    if (ExcessW > 0)
+                    {
+                        is_Saturated[layer] = true;
+                        InterfaceFlow[layer] -= ExcessW;
+                        if (InterfaceFlow[layer] < 0)
+                            BackFlow[layer] = -InterfaceFlow[layer];
+                    }
+                }
+            }
+        }
+
+        private void Redistribute()
+        {
+            // TODO: implement redistribution of water within each layer.
+            // Even distribution used temperately. 
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                for (int point = 0; point < num_Qpoints; ++point)
+                {
+                    QTheta[layer, point] = SW[layer];
+                    Qpsi[layer, point] = Suction(layer, QTheta[layer, point]);
+                    QK[layer, point] = SimpleK(layer, Qpsi[layer, point]);
+                }
+            }
         }
     }
 }
