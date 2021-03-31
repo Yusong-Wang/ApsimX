@@ -1,12 +1,11 @@
-using DocumentFormat.OpenXml.EMMA;
 using Gtk;
-using Models.CLEM;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UserInterface;
+using UserInterface.Extensions;
 using UserInterface.Interfaces;
 using UserInterface.Presenters;
 using UserInterface.Views;
@@ -100,7 +99,7 @@ namespace UserInterface.Views
 
         public void AddTabView(string tabName, object control)
         {
-            if(labelDictionary.ContainsKey(tabName))
+            if (labelDictionary.ContainsKey(tabName))
             {
                 return;
             }
@@ -120,7 +119,7 @@ namespace UserInterface.Views
             viewportDictionary.Add(tabName, newViewport);
             labelDictionary.Add(tabName, newLabel);
 
-            if (nbook.GetTabLabelText(newViewport) == null)
+            if (!nbook.Children.Contains(newViewport))
             {
                 nbook.AppendPage(newViewport, newLabel);
             }
@@ -128,15 +127,21 @@ namespace UserInterface.Views
             foreach (Widget child in newViewport.Children)
             {
                 newViewport.Remove(child);
-                child.Destroy();
+                child.Cleanup();
             }
             if (typeof(ViewBase).IsInstanceOfType(control))
             {
                 EventBox frame = new EventBox();
+#if NETFRAMEWORK
                 frame.ModifyBg(StateType.Normal, mainWidget.Style.Base(StateType.Normal));
+#endif
                 HBox hbox = new HBox();
                 uint border = 0;
-                if (tabName != "Properties" & tabName != "Display" & tabName != "Data")
+                if (tabName == "Properties")
+                {
+                    border = 5;
+                }
+                else if (tabName != "Display" & tabName != "Data")
                 {
                     border = 10;
                 }
@@ -144,15 +149,7 @@ namespace UserInterface.Views
                 hbox.BorderWidth = border;
 
                 ViewBase view = (ViewBase)control;
-
-                //if (view is ActivityLedgerGridView)
-                //{
-                //    hbox.Add(view.MainWidget);
-                //}
-                //else
-                //{
-                    hbox.Add(view.MainWidget);
-                //}
+                hbox.Add(view.MainWidget);
                 frame.Add(hbox);
                 newViewport.Add(frame);
 

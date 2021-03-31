@@ -77,7 +77,7 @@ namespace UserInterface.Presenters
 
         /// <summary>Attach the model and view to this presenter and populate the view.</summary>
         /// <param name="model">The data store model to work with.</param>
-        /// <param name="view">Data store view to work with.</param>
+        /// <param name="v">Data store view to work with.</param>
         /// <param name="explorerPresenter">Parent explorer presenter.</param>
         public override void Attach(object model, object v, ExplorerPresenter explorerPresenter)
         {
@@ -183,6 +183,7 @@ namespace UserInterface.Presenters
                                 simulationId = (int)data.Rows[0][i];
                             }
 
+                            // We don't want to display the SimulationID column.
                             data.Columns.RemoveAt(i);
                             i--;
                         }
@@ -190,6 +191,8 @@ namespace UserInterface.Presenters
                                  columnFilterEditBox.Text != string.Empty &&
                                  !columnFilterEditBox.Text.Split(',').Where(x => !string.IsNullOrEmpty(x)).Any(c => data.Columns[i].ColumnName.Contains(c.Trim())))
                         {
+                            // A column filter is provided and it doesn't match this column.
+                            // Therefore, remove the column from the table.
                             data.Columns.RemoveAt(i);
                             i--;
                         }

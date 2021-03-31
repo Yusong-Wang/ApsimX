@@ -67,7 +67,7 @@ the same character must be used to open and close an emphasis span.
 
 Emphasis can be used in the middle of a word:
 
-`un*frigging*believable` will appear as un*frigging*believable.
+`x*y*z` will appear as x*y*z.
 
 But if you surround an `*` or `_` with spaces, it'll be treated as a
 literal asterisk or underscore.
@@ -527,3 +527,15 @@ use regular HTML `<img>` tags.
 
 
 Note that for now, all images must be added as embedded resources to the ApsimNG assembly.
+
+### Superscript
+
+Text enclosed between caret (^) characters will be rendered as superscript.
+
+`super^script^`
+
+### Subscript
+
+Text enclosed between tilde (~) characters will be rendered as subscript.
+
+`sub~script~`

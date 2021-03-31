@@ -4,6 +4,7 @@
     using Models;
     using Views;
     using System;
+    using Interfaces;
     using APSIM.Shared.Utilities;
     using Commands;
 
@@ -127,8 +128,11 @@
         {
             editButton.Clicked -= OnEditButtonClick;
             helpButton.Clicked -= HelpBtnClicked;
-            ICommand changeText = new ChangeProperty(memoModel, nameof(memoModel.Text), textView.Text);
-            explorerPresenter.CommandHistory.Add(changeText);
+            if (memoModel.Text != textView.Text)
+            {
+                ICommand changeText = new ChangeProperty(memoModel, nameof(memoModel.Text), textView.Text);
+                explorerPresenter.CommandHistory.Add(changeText);
+            }
         }
 
         /// <summary>

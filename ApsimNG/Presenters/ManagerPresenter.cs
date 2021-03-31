@@ -8,8 +8,13 @@
     using Models;
     using Models.Core;
     using Views;
-    using ICSharpCode.NRefactory.CSharp;
+    using Interfaces;
     using Utility;
+
+#if NETFRAMEWORK
+    // Used for the "code reformat option"..
+    using ICSharpCode.NRefactory.CSharp;
+#endif
 
     /// <summary>
     /// Presenter for the Manager component
@@ -84,7 +89,11 @@
             }
             managerView.Editor.Mode = EditorType.ManagerScript;
             managerView.Editor.Text = manager.Code;
+#if NETFRAMEWORK
+            // In gtk3 builds, the gtksourceview completion infrastructure
+            // handles all of the completion functionality internally.
             managerView.Editor.ContextItemsNeeded += OnNeedVariableNames;
+#endif
             managerView.Editor.LeaveEditor += OnEditorLeave;
             managerView.Editor.AddContextSeparator();
             managerView.Editor.AddContextActionWithAccel("Test compile", OnDoCompile, "Ctrl+T");
@@ -118,10 +127,12 @@
         {
             try
             {
+#if NETFRAMEWORK
                 if (e.ControlShiftSpace)
                     intellisense.ShowScriptMethodCompletion(manager, e.Code, e.Offset, new Point(e.Coordinates.X, e.Coordinates.Y));
                 else if (intellisense.GenerateScriptCompletions(e.Code, e.Offset, e.ControlSpace))
                     intellisense.Show(e.Coordinates.X, e.Coordinates.Y);
+#endif
             }
             catch (Exception err)
             {
@@ -239,10 +250,14 @@
         {
             try
             {
+#if NETFRAMEWORK
                 CSharpFormatter formatter = new CSharpFormatter(FormattingOptionsFactory.CreateAllman());
                 string newText = formatter.Format(managerView.Editor.Text);
                 managerView.Editor.Text = newText;
                 explorerPresenter.CommandHistory.Add(new Commands.ChangeProperty(manager, "Code", newText));
+#else
+                throw new NotImplementedException();
+#endif
             }
             catch (Exception err)
             {
