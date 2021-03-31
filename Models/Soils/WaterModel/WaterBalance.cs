@@ -1336,6 +1336,7 @@
 
             if (Infiltration > 0.0)
             {
+                // TODO: This flux might limit infiltration when soil is relatively dry.
                 DownFlow = QK[0, 0] * ((Pond - (Qpsi[0, 0]) / QDepth[0, 0] + 1));
                 MaxFlow = Math.Min(DownFlow, 2 * soilPhysical.KS[0]);
                 InterfaceFlow[0] = Math.Min(MaxFlow, Infiltration);
