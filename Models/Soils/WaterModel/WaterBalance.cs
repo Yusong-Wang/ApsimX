@@ -1335,7 +1335,7 @@
             {
                 // TODO: This flux might limit infiltration when soil is relatively dry.
                 DownFlow = QK[0, 0] * ((Pond - (Qpsi[0, 0]) / QDepth[0, 0] + 1));
-                MaxFlow = Math.Min(DownFlow, 2 * soilPhysical.KS[0]);
+                MaxFlow = Math.Max(DownFlow, 2 * soilPhysical.KS[0]);
                 InterfaceFlow[0] = Math.Min(MaxFlow, Infiltration);
                 NewWater[0] += InterfaceFlow[0];
                 Redistribute(0, InterfaceFlow[0], -1);
@@ -1738,6 +1738,10 @@
             const double eff = 0.9;
             double[] depth = new double[num_Qpoints];
 
+            // Mass balance
+            double TotalWater_old = 0;
+            double TotalWater_new = 0;
+
             switch (method)
             {
                 case 0:
@@ -1784,6 +1788,7 @@
                     {
                         depth[n] = soilPhysical.Thickness[layer] * QWeight[layer, n];
                         theta_mean += QTheta[layer, n] * QWeight[layer, n];
+                        TotalWater_old += QTheta[layer, n] * depth[n];
                     }
                     for (int n = 0; n < num_Qpoints - 1; ++n)
                     {
@@ -1822,7 +1827,7 @@
                     if (water_diff[0] * flow[0] > 0.0)
                     {
                         if (Math.Abs(flow[0]) < Math.Abs(water_diff[0]))
-                            QTheta[layer, 0] -= eff * (water_diff[0] - flow[0]) / depth[0];
+                            QTheta[layer, 0] -= eff * flow[0] / depth[0];
                         else
                             QTheta[layer, 0] -= eff * water_diff[0] / depth[0];
                     }
@@ -1830,7 +1835,7 @@
                     if (water_diff[2] * flow[1] < 0.0)
                     {
                         if (Math.Abs(flow[1]) < Math.Abs(water_diff[2]))
-                            QTheta[layer, 2] -= eff * (water_diff[2] - flow[1]) / depth[2];
+                            QTheta[layer, 2] += eff * flow[1] / depth[2];
                         else
                             QTheta[layer, 2] -= eff * water_diff[2] / depth[2];
                     }
@@ -1838,13 +1843,17 @@
                     water_diff[0] = (QTheta[layer, 0] - theta_eq[0]) * depth[0];
                     water_diff[2] = (QTheta[layer, 2] - theta_eq[2]) * depth[2];
                     water_diff[1] = -(water_diff[0] + water_diff[2]);
-                    QTheta[layer, 1] -= water_diff[1] / depth[1];
+                    QTheta[layer, 1] = theta_eq[1] + water_diff[1] / depth[1];
 
                     for (int n = 0; n < num_Qpoints; ++n)
                     {
                         Qpsi[layer, n] = Suction(layer, QTheta[layer, n]);
                         QK[layer, n] = SimpleK(layer, Qpsi[layer, n]);
+                        TotalWater_new += QTheta[layer, n] * depth[n];
                     }
+
+                    if (!MathUtilities.FloatsAreEqual(TotalWater_new, TotalWater_old, 1e-6))
+                        System.Console.WriteLine("Water mass balance error.");
 
                     break;
                 default:
