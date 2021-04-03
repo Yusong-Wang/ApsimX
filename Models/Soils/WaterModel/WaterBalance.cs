@@ -1790,12 +1790,15 @@
                         theta_mean += QTheta[layer, n] * QWeight[layer, n];
                         TotalWater_old += QTheta[layer, n] * depth[n];
                     }
+
+                    // TODO: a new method to accelerate water movement when the soil is very dry.
+                    // Hint: the gradient would be much great if the depth is reduced.
                     for (int n = 0; n < num_Qpoints - 1; ++n)
                     {
                         flow[n] = (QK[layer, n] + QK[layer, n + 1]) / 2
                             * ((Qpsi[layer, n] - Qpsi[layer, n + 1]) / (QDepth[layer, n + 1] - QDepth[layer, n]) + 1);
 
-                        flow[n] /= 2.0;
+                        // flow[n] /= 2.0;
                     }
 
                     if (MathUtilities.FloatsAreEqual(theta_mean, soilPhysical.SAT[layer]))
