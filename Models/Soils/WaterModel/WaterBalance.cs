@@ -1327,28 +1327,10 @@
 
             }
 
-            //for (int layer = 0; layer < num_layers; ++layer)
-            //{
-            //    NewWater[layer] = Water[layer] + Source[layer];
-            //    // TODO: may just use ExcessW to indicate saturation
-            //    is_Saturated[layer] = MathUtilities.IsGreaterThanOrEqual(NewWater[layer], soilPhysical.SATmm[layer]);
-            //    ExcessW[layer] = Math.Max(0.0, NewWater[layer] - soilPhysical.SATmm[layer]);
-            //    Redistribute(layer);
-            //}
-
             for (int layer = 0; layer < num_layers - 1; ++layer)
             {
                 if (FlowType[layer] == 1)
                 {
-                    //if (ExcessW[layer] > 0.0)
-                    //    ExcessW[layer] += InterfaceFlow[layer];
-                    //else
-                    //{
-                    //    NewWater[layer] += InterfaceFlow[layer];
-                    //    is_Saturated[layer] = MathUtilities.IsGreaterThanOrEqual(NewWater[layer], soilPhysical.SATmm[layer]);
-                    //    ExcessW[layer] = Math.Max(0.0, NewWater[layer] - soilPhysical.SATmm[layer]);
-                    //}
-
                     if (ExcessW[layer] > 0.0)
                     {
                         FlowType[layer + 1] = 1;
@@ -1428,17 +1410,14 @@
                                 if (up > 0)
                                 {
                                     UpFlow = up / (up + down) * amount;
-                                    // Redistribute(layer - 1, -UpFlow, -1);
                                     Theta = QTheta[layer - 1, 2] + UpFlow / (soilPhysical.Thickness[layer - 1] * QWeight[layer - 1, 2]);
                                     if (MathUtilities.IsGreaterThanOrEqual(Theta, soilPhysical.SAT[layer - 1]))
                                     {
                                         UpFlow -= (Theta - soilPhysical.SAT[layer - 1]) * (soilPhysical.Thickness[layer - 1] * QWeight[layer - 1, 2]);
                                         is_upflow = false;
-                                        // Theta = soilPhysical.SAT[layer - 1];
                                     }
                                     InterfaceFlow[layer] += -UpFlow;
                                     Redistribute(layer - 1, -UpFlow, 1);
-                                    // QTheta[layer - 1, 2] = Theta;
                                     Qpsi[layer - 1, 2] = Suction(layer - 1, QTheta[layer - 1, 2]);
                                     QK[layer - 1, 2] = SimpleK(layer - 1, Qpsi[layer - 1, 2]);
                                 }
@@ -1452,19 +1431,6 @@
                                 UpFlow = 0.0;
 
                             DownFlow = amount - UpFlow;
-                            //if (!is_sat_down)
-                            //{
-                            //    Theta = QTheta[layer + 1, 0] + DownFlow / (soilPhysical.Thickness[layer + 1] * QWeight[layer + 1, 0]);
-                            //    if (MathUtilities.IsGreaterThan(Theta, soilPhysical.SAT[layer + 1]))
-                            //    {
-                            //        Theta = soilPhysical.SAT[layer + 1];
-                            //        is_sat_down = true;
-                            //    }
-                            //    Redistribute(layer + 1, DownFlow, 1);
-                            //    // QTheta[layer + 1, 0] = Theta;
-                            //    Qpsi[layer + 1, 0] = Suction(layer + 1, QTheta[layer + 1, 0]);
-                            //    QK[layer + 1, 0] = SimpleK(layer + 1, Qpsi[layer + 1, 0]);
-                            //}
 
                             InterfaceFlow[layer + 1] += DownFlow;
                             Redistribute(layer + 1, DownFlow, -1);
@@ -1606,102 +1572,6 @@
             {
                 Redistribute(layer, 1);
             }
-
-            //// Previous method ---------------------------------------------------------------------------------------------------------
-            //    for (int layer = 0; layer < num_layers; ++layer)
-            //{
-            //    if (layer == num_layers -1)
-            //    {
-            //        // Free drainage boundary
-            //        InterfaceFlow[layer + 1] = (QK[layer, 2]);
-            //    }
-            //    else
-            //    {
-            //        InterfaceFlow[layer + 1] = (QK[layer, 2] + QK[layer + 1, 0]) / 2
-            //                                 * ((Qpsi[layer, 2] - Qpsi[layer + 1, 0]) / (QDepth[layer + 1, 0] - QDepth[layer, 2]) + 1);
-            //        // MaxFlow = (QK[layer, 2] + QK[layer + 1, 0]);
-            //        MaxFlow = soilPhysical.KS[layer] + soilPhysical.KS[layer + 1];
-            //        if (InterfaceFlow[layer + 1] > 0)
-            //        {
-            //            double MaxDownSat = Water[layer] + Source[layer] + InterfaceFlow[layer] - soilPhysical.DULmm[layer];
-            //            MaxDownSat = Math.Max(0.0, MaxDownSat);
-            //            // TODO: update psi at lower layer quadrature point
-            //            double MaxDownUnsat = kdul[layer] * ((psid[layer] - Qpsi[layer + 1, 0]) / (QDepth[layer + 1, 0] - QDepth[layer, 2]) + 1);
-            //            MaxDownUnsat = Math.Max(0.0, MaxDownUnsat);
-            //            double MaxDownFlow = MaxDownSat + MaxDownUnsat;
-            //            MaxFlow = Math.Min(MaxFlow, MaxDownFlow);
-            //            InterfaceFlow[layer + 1] = Math.Min(InterfaceFlow[layer + 1], MaxFlow);
-            //        }
-            //        else
-            //        {
-            //            double MaxUpSat = -(Water[layer + 1] + Source[layer + 1] - soilPhysical.DULmm[layer + 1]);
-            //            MaxUpSat = Math.Min(0.0, MaxUpSat);
-            //            double MaxUpUnsat = kdul[layer + 1] * ((Qpsi[layer, 2] - psid[layer + 1]) / (QDepth[layer + 1, 0] - QDepth[layer, 2]) + 1);
-            //            MaxUpUnsat = Math.Min(0.0, MaxUpUnsat);
-            //            double MaxUpFlow = MaxUpSat + MaxUpUnsat;
-            //            MaxFlow = Math.Max(-MaxFlow, MaxUpFlow);
-            //            InterfaceFlow[layer + 1] = Math.Max(InterfaceFlow[layer + 1], MaxFlow);
-            //        }
-            //    }
-                
-            //    // TODO: make sure enough water is available to flow out from the region.
-            //    ExcessW[layer] = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
-
-            //    if(ExcessW[layer] > 0.0)
-            //    {
-            //        is_Saturated[layer] = true;
-            //        if (layer != 0 & FlowType[layer] == 0)
-            //        {
-            //            InterfaceFlow[layer] = (QK[layer - 1, 2])
-            //                                   * ((Qpsi[layer - 1, 2] - 0.0) / (soilPhysical.ThicknessCumulative[layer - 1] - QDepth[layer - 1, 2]) + 1);
-            //            // TODO: *** need to limit this flow; or delete this step; if source[layer] is 0, no need to do this step; or set FlowType to 1 for scenarios
-            //        }
-            //        ExcessW[layer] = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
-            //        if (layer != num_layers - 1)
-            //            MaxFlow = 2 * soilPhysical.KS[layer + 1];
-            //        else
-            //            MaxFlow = 2 * soilPhysical.KS[layer];
-
-            //        if (ExcessW[layer] > MaxFlow)
-            //        {
-            //            InterfaceFlow[layer + 1] = MaxFlow;
-            //            BackFlow[layer] = ExcessW[layer] - MaxFlow;
-            //        }
-            //        else if (ExcessW[layer] > InterfaceFlow[layer + 1])
-            //        {
-            //            InterfaceFlow[layer + 1] = ExcessW[layer];
-            //        }
-            //    }
-            //}
-
-            //for (int layer = num_layers - 1; layer >= 0; --layer)
-            //{
-            //    if (is_Saturated[layer])
-            //    {
-            //        if (layer == num_layers - 1)
-            //        {
-            //            BackFlow[layer] = 0;
-            //        }
-            //        else
-            //        {
-            //            BackFlow[layer] = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
-            //        }
-                    
-            //        InterfaceFlow[layer] -= BackFlow[layer];
-            //    }
-            //    else
-            //    {
-            //        // check if saturated
-            //        ExcessW[layer] = Water[layer] + Source[layer] + InterfaceFlow[layer] - InterfaceFlow[layer + 1] - soilPhysical.SATmm[layer];
-            //        if (ExcessW[layer] > 0)
-            //        {
-            //            is_Saturated[layer] = true;
-            //            InterfaceFlow[layer] -= ExcessW[layer];
-            //            if (InterfaceFlow[layer] < 0)
-            //                BackFlow[layer] = -InterfaceFlow[layer];
-            //        }
-            //    }
-            //}
         }
 
         /// <summary>
@@ -2087,11 +1957,6 @@
                     psi_1 = Suction(layer, theta_1);
                     psi_2 = Suction(layer + 1, theta_2);
                     grad = (psi_1 - psi_2) / depth + 1.0;
-
-                    //if (MathUtilities.FloatsAreEqual(grad, 0.0))
-                    //{
-                    //    return flow;
-                    //}
 
                     if (grad * flow > 0)
                     {
