@@ -417,6 +417,8 @@
 
         // --- Variables for new module --------------------------------------------------
 
+        HydraulicModels hydraulicModel = new HydraulicModels();
+
         // Constants
         const double effpar = 0.184;
 
@@ -900,41 +902,17 @@
         ///<summary>Perform initial calculations for hydraulic curves</summary>
         private void InitCalc()
         {
-            //+  Purpose
-            //   Perform initial calculations from input parameters and prepare for simulation
-
-            // change units of params to normal SWIM units
-            // ie. cm and hours etc.
-            //InitChangeUnits();
-
-            // ------------------- CALCULATE CURRENT TIME -------------------------
-            //int time_mins = TimeToMins(apsim_time);
-            //t = Time(year, day, time_mins);
-
-            // ----------------- SET UP NODE SPECIFICATIONS -----------------------
-
-            // safer to use number returned from read routine
-            //int num_layers = soilPhysical.Thickness.Length;
-            //if (n != num_layers - 1)
-            //    ResizeProfileArrays(num_layers);
-
-            //for (int i = 0; i <= n; i++)
-            //    dx[i] = soilPhysical.Thickness[i] / 10.0;
-
-            //x[0] = 0.0;
-            //x[1] = 2.0 * dx[0] + x[0];
-
-            //for (int i = 1; i < n; i++)
-            //    x[i] = MathUtilities.Sum(dx, 0, i - 1) + dx[i] / 2;
-
-            //x[n] = MathUtilities.Sum(dx);
-
-            //      p%dx(0) = 0.5*(p%x(1) - p%x(0))
-            //      do 10 i=1,p%n-1
-            //         p%dx(i) = 0.5*(p%x(i+1)-p%x(i-1))
-            //   10 continue
-            //      p%dx(p%n) = 0.5*(p%x(p%n)-p%x(p%n-1))
-
+            // Check calculated hydraulic parameters with van Genuchten model.
+            double h = -10.0;
+            for (int i = 0; i < 6; ++i)
+            {
+                double theta;
+                double K;
+                theta = hydraulicModel.get_theta(h);
+                K = hydraulicModel.get_K(h);
+                System.Console.WriteLine("theta: " + theta + ", K: " + K);
+                h *= 10;
+            }
 
             // ------- IF USING SIMPLE SOIL SPECIFICATION CALCULATE PROPERTIES -----
 

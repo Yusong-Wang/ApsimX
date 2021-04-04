@@ -304,4 +304,200 @@ namespace Models.Soils
         #endregion
 
     }
+
+    /// <summary>
+    /// Returns theta and K values for specific psi and psi value for specific theta.
+    /// The current implemented models include: van Genuchten - Mualem model (default) and modified van Genuchten model.
+    /// The default soil type is loam if parameters are not provided.
+    /// The input and output units are mm and day.
+    /// </summary>
+    [Serializable]
+    [ViewName("UserInterface.View.ProfileView")]
+    [PresenterName("UserInterface.Presenters.ProfilePresenter")]
+    [ValidParent(ParentType = typeof(Soil))]
+    public class HydraulicModels : Model
+    {
+        // public string model;
+        #region Internal States
+        private int iModel;
+        private double theta_r = 0.078;
+        private double theta_s = 0.43;
+        private double alpha = 0.0036;
+        private double n = 1.56;
+        private double K_s = 249.6;
+        private double l = 0.5;
+        private double theta_a;
+        private double theta_m;
+        private double theta_k;
+        private double K_k;
+        private double p_par = 2.0;
+        private double m;
+
+        private double h_min;
+        private double h_h;
+        private double h_s;
+        private double h_k;
+        private double Qee;
+        private double Qees;
+        private double Qeek;
+        private double Qeem;
+        private double Qe;
+        private double Qek;
+        private double FFQ;
+        private double FFQK;
+        private double K_r;
+
+        #endregion
+
+        /// <summary>
+        /// Initialize a soil hydraulic model for a soil.
+        /// </summary>
+        /// <param name="HydraulicModel"></param>
+        /// <param name="Parameters"></param>
+        public HydraulicModels(string HydraulicModel = "van Genuchten", double[] Parameters = null)
+        {
+            if (HydraulicModel == "van Genuchten")
+            {
+                iModel = 0;
+                if (Parameters != null)
+                {
+                    if (Parameters.Length != 6)
+                    {
+                        // TODO: error message.
+                        System.Console.WriteLine("Wrong length of parameters for this model.");
+                    }
+
+                    theta_r = Parameters[0];
+                    theta_s = Parameters[1];
+                    alpha = Parameters[2];
+                    n = Parameters[3];
+                    K_s = Parameters[4];
+                    l = Parameters[5];
+                }
+
+                theta_a = theta_r;
+                theta_m = theta_s;
+                theta_k = theta_s;
+                K_k = K_s;
+                m = 1.0 - 1.0 / n;
+            }
+            else if (HydraulicModel == "Modified van Genuchten")
+            {
+                iModel = 0;
+                if (Parameters != null)
+                {
+                    if (Parameters.Length != 10)
+                    {
+                        // TODO: error message.
+                        System.Console.WriteLine("Wrong length of parameters for this model.");
+                    }
+
+                    theta_r = Parameters[0];
+                    theta_s = Parameters[1];
+                    alpha = Parameters[2];
+                    n = Parameters[3];
+                    K_s = Parameters[4];
+                    l = Parameters[5];
+                    theta_a = Parameters[6];
+                    theta_m = Parameters[7];
+                    theta_k = Parameters[8];
+                    K_k = Parameters[9];
+                    m = 1.0 - 1.0 / n;
+                }
+            }
+            else
+            {
+                System.Console.WriteLine("This model has not been implemented.");
+            }
+
+            h_min = -System.Numerics.Complex.Pow(-1.0e+300, 1.0 / n).Magnitude / Math.Max(alpha, 1.0);
+            Qees = Math.Min((theta_s - theta_a) / (theta_m - theta_a), 0.999999999999999);
+            Qeek = Math.Min((theta_k - theta_a) / (theta_m - theta_a), Qees);
+            Qeem = Math.Pow(1.0 + Math.Pow(-alpha * h_min, n), -m);
+            h_s = -1 / alpha * Math.Pow((Math.Pow(Qees, -1.0 / m) - 1.0), 1.0 / n);
+            h_k = -1 / alpha * Math.Pow((Math.Pow(Qeek, -1.0 / m) - 1.0), 1.0 / n);
+        }
+
+        /// <summary>
+        /// Return pressure head for a specific water content.
+        /// </summary>
+        /// <param name="theta"></param>
+        /// <returns></returns>
+        public double get_h(double theta)
+        {
+            switch (iModel)
+            {
+                case 0:
+                    Qee = Math.Min(Math.Max(theta * (theta_s - theta_a) / (theta_m - theta_a), Qeem), 0.999999999999999);
+                    return Math.Max(-1.0 / alpha * Math.Pow(Math.Pow(Qee, (-1.0 / m - 1.0)), 1.0 / n), 1.0e-37);
+                default:
+                    // Throw an exception. 
+                    return 0.0;
+            }
+        }
+
+        /// <summary>
+        /// Return hydraulic conductivity for a specific pressure head.
+        /// </summary>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        public double get_K(double h)
+        {
+            switch (iModel)
+            {
+                case 0:
+                    h_h = Math.Max(h, h_min);
+                    if (h < h_k)
+                    {
+                        Qee = Math.Pow(1.0 + Math.Pow(-alpha * h_h, n), -m);
+                        Qe = (theta_m - theta_a) / (theta_s - theta_a) * Qee;
+                        Qek = (theta_m - theta_a) / (theta_s - theta_a) * Qeek;
+                        FFQ = 1.0 - Math.Pow(1.0 - Math.Pow(Qee, 1.0 / m), m);
+                        FFQK = 1.0 - Math.Pow(1.0 - Math.Pow(Qeek, 1.0 / m), m);
+
+                        if (FFQ < 0.0)
+                            FFQ = m * Math.Pow(Qee, 1.0 / m);
+
+                        K_r = Math.Pow(Qe / Qek, l) * Math.Pow(FFQ / FFQK, p_par) * K_k / K_s;
+                        return Math.Max(K_s * K_r, 1.0e-37);
+                    }
+                    else if (h < h_s)
+                    {
+                        K_r = (1.0 - K_k / K_s) / (h_s - h_k) * (h - h_s) + 1;
+                        return K_s * K_r;
+                    }
+                    else
+                        return K_s;
+
+                default:
+                    // Throw an exception.
+                    return K_s;
+            }
+        }
+
+        /// <summary>
+        /// Return the water content for a specific pressure head.
+        /// </summary>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        public double get_theta(double h)
+        {
+            switch (iModel)
+            {
+                case 0:
+                    h_h = Math.Max(h, h_min);
+                    if (h < h_s)
+                    {
+                        Qee = Math.Pow(1.0 + Math.Pow(-alpha * h_h, n), -m);
+                        return Math.Max((theta_a + (theta_m - theta_a) * Qee), 1.0e-37);
+                    }
+                    else
+                        return theta_s;
+
+                default:
+                    // Throw an exception.
+                    return theta_s;
+            }
+        }
+    }
 }
