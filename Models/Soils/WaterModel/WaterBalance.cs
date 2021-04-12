@@ -902,16 +902,31 @@
         ///<summary>Perform initial calculations for hydraulic curves</summary>
         private void InitCalc()
         {
-            // Check calculated hydraulic parameters with van Genuchten model.
-            double h = -10.0;
+            // *** Check calculated hydraulic parameters with van Genuchten model.
+            double h = -100.0;
+            //string str;
             for (int i = 0; i < 6; ++i)
             {
                 double theta;
                 double K;
+                //System.Console.WriteLine("Input a h value: ");
+                //str = System.Console.ReadLine();
+                //h = Convert.ToDouble(str);
                 theta = hydraulicModel.get_theta(h);
                 K = hydraulicModel.get_K(h);
-                System.Console.WriteLine("theta: " + theta + ", K: " + K);
-                h *= 10;
+                System.Console.WriteLine("h: " + h + ", theta: " + theta + ", K: " + K);
+                h -= 200;
+            }
+            double Theta = 0.42;
+            for (int i = 0; i < 6; ++i)
+            {
+                double hh;
+                //System.Console.WriteLine("Input a theta value: ");
+                //str = System.Console.ReadLine();
+                //Theta = Convert.ToDouble(str);
+                hh = hydraulicModel.get_h(Theta);
+                System.Console.WriteLine("Theta: " + Theta + ", h: " + hh);
+                Theta -= 0.02;
             }
 
             // ------- IF USING SIMPLE SOIL SPECIFICATION CALCULATE PROPERTIES -----
@@ -1235,8 +1250,10 @@
                         for (int point = 0; point < num_points; ++point)
                         {
                             QTheta[layer, point] = SW[layer];
-                            Qpsi[layer, point] = Suction(layer, QTheta[layer, point]);
-                            QK[layer, point] = SimpleK(layer, Qpsi[layer, point]);
+                            //Qpsi[layer, point] = Suction(layer, QTheta[layer, point]);
+                            //QK[layer, point] = SimpleK(layer, Qpsi[layer, point]);
+                            Qpsi[layer, point] = hydraulicModel.get_h(QTheta[layer, point]);
+                            QK[layer, point] = hydraulicModel.get_K(Qpsi[layer, point]);
                             QDepth[layer, point] = soilPhysical.ThicknessCumulative[layer] + (y[point] - 1) * soilPhysical.Thickness[layer];
                             QWeight[layer, point] = weight[point];
                         }
@@ -1418,8 +1435,11 @@
                                     }
                                     InterfaceFlow[layer] += -UpFlow;
                                     Redistribute(layer - 1, -UpFlow, 1);
-                                    Qpsi[layer - 1, 2] = Suction(layer - 1, QTheta[layer - 1, 2]);
-                                    QK[layer - 1, 2] = SimpleK(layer - 1, Qpsi[layer - 1, 2]);
+                                    //Qpsi[layer - 1, 2] = Suction(layer - 1, QTheta[layer - 1, 2]);
+                                    //QK[layer - 1, 2] = SimpleK(layer - 1, Qpsi[layer - 1, 2]);
+                                    Qpsi[layer - 1, 2] = hydraulicModel.get_h(QTheta[layer - 1, 2]);
+                                    QK[layer - 1, 2] = hydraulicModel.get_K(Qpsi[layer - 1, 2]);
+
                                 }
                                 else
                                 {
@@ -1612,8 +1632,10 @@
 
                         for (int n = 0; n < num_Qpoints; ++n)
                         {
-                            Qpsi[layer, n] = Suction(layer, QTheta[layer, n]);
-                            QK[layer, n] = SimpleK(layer, Qpsi[layer, n]);
+                            //Qpsi[layer, n] = Suction(layer, QTheta[layer, n]);
+                            //QK[layer, n] = SimpleK(layer, Qpsi[layer, n]);
+                            Qpsi[layer, n] = hydraulicModel.get_h(QTheta[layer, n]);
+                            QK[layer, n] = hydraulicModel.get_K(Qpsi[layer, n]);
                         }
                     }
 
@@ -1654,8 +1676,10 @@
 
                     // Calculate the equilibrium distribution.
                     delta = (depth[0] + depth[1]) / 2.0;
-                    psi_mean = Suction(layer, theta_mean);
-                    cap = (SimpleTheta(layer, psi_mean + delta) - SimpleTheta(layer, psi_mean - delta)) / (2 * delta);
+                    //psi_mean = Suction(layer, theta_mean);
+                    //cap = (SimpleTheta(layer, psi_mean + delta) - SimpleTheta(layer, psi_mean - delta)) / (2 * delta);
+                    psi_mean = hydraulicModel.get_h(theta_mean);
+                    cap = (hydraulicModel.get_theta(psi_mean + delta) - hydraulicModel.get_theta(psi_mean - delta)) / (2 * delta);
                     theta_eq[0] = theta_mean - cap * delta;
                     theta_eq[1] = theta_mean;
                     theta_eq[2] = theta_mean + cap * delta;
@@ -1698,8 +1722,10 @@
 
                     for (int n = 0; n < num_Qpoints; ++n)
                     {
-                        Qpsi[layer, n] = Suction(layer, QTheta[layer, n]);
-                        QK[layer, n] = SimpleK(layer, Qpsi[layer, n]);
+                        //Qpsi[layer, n] = Suction(layer, QTheta[layer, n]);
+                        //QK[layer, n] = SimpleK(layer, Qpsi[layer, n]);
+                        Qpsi[layer, n] = hydraulicModel.get_h(QTheta[layer, n]);
+                        QK[layer, n] = hydraulicModel.get_K(Qpsi[layer, n]);
                         TotalWater_new += QTheta[layer, n] * depth[n];
                     }
 
@@ -1735,8 +1761,10 @@
                         QTheta[layer, 2] -= flow / (QWeight[layer, 2] * soilPhysical.Thickness[layer]);
                         if (MathUtilities.IsLessThan(QTheta[layer, 2], soilPhysical.AirDry[layer]))
                             System.Console.WriteLine("Too much water flow out from this section.");
-                        Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
-                        QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                        //Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
+                        //QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                        Qpsi[layer, 2] = hydraulicModel.get_h(QTheta[layer, 2]);
+                        QK[layer, 2] = hydraulicModel.get_K(Qpsi[layer, 2]);
                     }
                     else if (flow < 0.0)
                     {
@@ -1765,20 +1793,26 @@
                                 }
                                 else
                                 {
-                                    Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
-                                    QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                                    //Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
+                                    //QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                                    Qpsi[layer, 0] = hydraulicModel.get_h(QTheta[layer, 0]);
+                                    QK[layer, 0] = hydraulicModel.get_K(Qpsi[layer, 0]);
                                 }
                             }
                             else
                             {
-                                Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
-                                QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                                //Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
+                                //QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                                Qpsi[layer, 1] = hydraulicModel.get_h(QTheta[layer, 1]);
+                                QK[layer, 1] = hydraulicModel.get_K(Qpsi[layer, 1]);
                             }
                         }
                         else
                         {
-                            Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
-                            QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                            //Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
+                            //QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                            Qpsi[layer, 2] = hydraulicModel.get_h(QTheta[layer, 2]);
+                            QK[layer, 2] = hydraulicModel.get_K(Qpsi[layer, 2]);
                         }
                     }
                     break;
@@ -1802,8 +1836,10 @@
                             }
                             else
                             {
-                                Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
-                                QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                                //Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
+                                //QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                                Qpsi[layer, 0] = hydraulicModel.get_h(QTheta[layer, 0]);
+                                QK[layer, 0] = hydraulicModel.get_K(Qpsi[layer, 0]);
                             }
 
                             QTheta[layer, 2] += flow / (QWeight[layer, 2] * soilPhysical.Thickness[layer]);
@@ -1815,14 +1851,18 @@
                             }
                             else
                             {
-                                Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
-                                QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                                //Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
+                                //QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                                Qpsi[layer, 2] = hydraulicModel.get_h(QTheta[layer, 2]);
+                                QK[layer, 2] = hydraulicModel.get_K(Qpsi[layer, 2]);
                             }
                         }
                         else
                         {
-                            Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
-                            QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                            //Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
+                            //QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                            Qpsi[layer, 1] = hydraulicModel.get_h(QTheta[layer, 1]);
+                            QK[layer, 1] = hydraulicModel.get_K(Qpsi[layer, 1]);
                         }
                     }
                     else if (flow < 0.0)
@@ -1831,8 +1871,10 @@
                         QTheta[layer, 1] += flow / (QWeight[layer, 1] * soilPhysical.Thickness[layer]);
                         if (MathUtilities.IsLessThan(QTheta[layer, 1], soilPhysical.AirDry[layer]))
                             System.Console.WriteLine("Too much water flow out from this section.");
-                        Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
-                        QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                        //Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
+                        //QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                        Qpsi[layer, 1] = hydraulicModel.get_h(QTheta[layer, 1]);
+                        QK[layer, 1] = hydraulicModel.get_K(Qpsi[layer, 1]);
                     }
                     break;
                 case -1:
@@ -1863,20 +1905,26 @@
                                 }
                                 else
                                 {
-                                    Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
-                                    QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                                    //Qpsi[layer, 2] = Suction(layer, QTheta[layer, 2]);
+                                    //QK[layer, 2] = SimpleK(layer, Qpsi[layer, 2]);
+                                    Qpsi[layer, 2] = hydraulicModel.get_h(QTheta[layer, 2]);
+                                    QK[layer, 2] = hydraulicModel.get_K(Qpsi[layer, 2]);
                                 }
                             }
                             else
                             {
-                                Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
-                                QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                                //Qpsi[layer, 1] = Suction(layer, QTheta[layer, 1]);
+                                //QK[layer, 1] = SimpleK(layer, Qpsi[layer, 1]);
+                                Qpsi[layer, 1] = hydraulicModel.get_h(QTheta[layer, 1]);
+                                QK[layer, 1] = hydraulicModel.get_K(Qpsi[layer, 1]);
                             }
                         }
                         else
                         {
-                            Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
-                            QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                            //Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
+                            //QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                            Qpsi[layer, 0] = hydraulicModel.get_h(QTheta[layer, 0]);
+                            QK[layer, 0] = hydraulicModel.get_K(Qpsi[layer, 0]);
                         }
                     }
                     else if (flow < 0.0)
@@ -1885,8 +1933,10 @@
                         QTheta[layer, 0] += flow / (QWeight[layer, 0] * soilPhysical.Thickness[layer]);
                         if (MathUtilities.IsLessThan(QTheta[layer, 0], soilPhysical.AirDry[layer]))
                             System.Console.WriteLine("Too much water flow out from this section.");
-                        Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
-                        QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                        //Qpsi[layer, 0] = Suction(layer, QTheta[layer, 0]);
+                        //QK[layer, 0] = SimpleK(layer, Qpsi[layer, 0]);
+                        Qpsi[layer, 0] = hydraulicModel.get_h(QTheta[layer, 0]);
+                        QK[layer, 0] = hydraulicModel.get_K(Qpsi[layer, 0]);
                     }
                     break;
                 default:
@@ -1930,7 +1980,8 @@
                 min_flow = 0.0;
                 if (flow > 0.0)
                 {
-                    water_a = (QTheta[layer, 2] - SimpleTheta(layer, psiad)) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
+                    //water_a = (QTheta[layer, 2] - SimpleTheta(layer, psiad)) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
+                    water_a = (QTheta[layer, 2] - hydraulicModel.get_theta(psiad)) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
                     // TODO: no need to limit flow to water_d.
                     // water_d = (soilPhysical.SAT[layer + 1] - QTheta[layer + 1, 0]) * QWeight[layer + 1, 0] * soilPhysical.Thickness[layer + 1];
                     max_flow = soilPhysical.KS[layer] + soilPhysical.KS[layer + 1];
@@ -1941,7 +1992,8 @@
                 }
                 else
                 {
-                    water_a = (QTheta[layer + 1, 0] - SimpleTheta(layer + 1, psiad)) * QWeight[layer + 1, 0] * soilPhysical.Thickness[layer + 1];
+                    //water_a = (QTheta[layer + 1, 0] - SimpleTheta(layer + 1, psiad)) * QWeight[layer + 1, 0] * soilPhysical.Thickness[layer + 1];
+                    water_a = (QTheta[layer + 1, 0] - hydraulicModel.get_theta(psiad)) * QWeight[layer + 1, 0] * soilPhysical.Thickness[layer + 1];
                     water_d = (soilPhysical.SAT[layer] - QTheta[layer, 2]) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
                     max_flow = soilPhysical.KS[layer];
                     max_flow = -Math.Min(max_flow, Math.Min(water_a, water_d));
@@ -1954,8 +2006,10 @@
                 {
                     theta_1 = QTheta[layer, 2] - flow / (QWeight[layer, 2] * soilPhysical.Thickness[layer]);
                     theta_2 = QTheta[layer + 1, 0] + flow / (QWeight[layer + 1, 0] * soilPhysical.Thickness[layer + 1]);
-                    psi_1 = Suction(layer, theta_1);
-                    psi_2 = Suction(layer + 1, theta_2);
+                    //psi_1 = Suction(layer, theta_1);
+                    //psi_2 = Suction(layer + 1, theta_2);
+                    psi_1 = hydraulicModel.get_h(theta_1);
+                    psi_2 = hydraulicModel.get_h(theta_2);
                     grad = (psi_1 - psi_2) / depth + 1.0;
 
                     if (grad * flow > 0)
@@ -1991,24 +2045,38 @@
 
                 theta = QTheta[layer, 2];
                 flow = QK[layer, 2];
-                water_a = (QTheta[layer, 2] - SimpleTheta(layer, psiad)) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
+                //water_a = (QTheta[layer, 2] - SimpleTheta(layer, psiad)) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
+                water_a = (QTheta[layer, 2] - hydraulicModel.get_theta(psiad)) * QWeight[layer, 2] * soilPhysical.Thickness[layer];
                 flow = Math.Min(flow, water_a);
-                
+
+                if (flow <= flow_d)
+                {
+                    return flow;
+                }
 
                 for (int i = 0; i < 100; ++i)
                 {
                     if (flow <= flow_d)
                     {
                         flow_cum += flow;
-                        return flow_cum;
+                        if (flow_cum >= QK[layer, 2])
+                            return QK[layer, 2];
+                        else
+                            return flow_cum;
                     }
 
                     flow = flow_d;
                     flow_cum += flow;
+                    if (flow_cum >= QK[layer, 2])
+                    {
+                        return QK[layer, 2];
+                    }
                     
                     theta -= flow / (QWeight[layer, 2] * soilPhysical.Thickness[layer]);
-                    psi = Suction(layer, theta);
-                    K = SimpleK(layer, psi);
+                    //psi = Suction(layer, theta);
+                    //K = SimpleK(layer, psi);
+                    psi = hydraulicModel.get_h(theta);
+                    K = hydraulicModel.get_K(psi);
 
                     flow = K;
                 }

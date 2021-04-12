@@ -428,8 +428,9 @@ namespace Models.Soils
             switch (iModel)
             {
                 case 0:
-                    Qee = Math.Min(Math.Max(theta * (theta_s - theta_a) / (theta_m - theta_a), Qeem), 0.999999999999999);
-                    return Math.Max(-1.0 / alpha * Math.Pow(Math.Pow(Qee, (-1.0 / m - 1.0)), 1.0 / n), 1.0e-37);
+                    // Qee = Math.Min(Math.Max(theta * (theta_s - theta_a) / (theta_m - theta_a), Qeem), 0.999999999999999);
+                    Qee = Math.Min(Math.Max((theta - theta_a) / (theta_m - theta_a), Qeem), 0.999999999999999);
+                    return Math.Min(-1.0 / alpha * Math.Pow((Math.Pow(Qee, -1.0 / m) - 1.0), 1.0 / n), -1.0e-37);
                 default:
                     // Throw an exception. 
                     return 0.0;
