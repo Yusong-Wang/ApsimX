@@ -1,4 +1,6 @@
-﻿using Models.Core;
+﻿using APSIM.Shared.Utilities;
+using Models.Core;
+using Models.WaterModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -120,7 +122,7 @@ namespace Models.Soils
         /// <param name="layer">The layer.</param>
         /// <param name="psiValue">The psi value.</param>
         /// <returns></returns>
-        public double SimpleTheta(int layer, double psiValue)
+        public double get_theta(int layer, double psiValue)
         {
             //  Purpose
             //     Calculate Theta for a given node for a specified suction.
@@ -225,7 +227,7 @@ namespace Models.Soils
         {
             //  Purpose
             //      Calculate S for a given node for a specified suction.
-            return SimpleTheta(layer, psiValue) / Water.SAT[layer];
+            return get_theta(layer, psiValue) / Water.SAT[layer];
         }
 
         /// <summary>
@@ -306,7 +308,115 @@ namespace Models.Soils
     }
 
     /// <summary>
-    /// Returns theta and K values for specific psi and psi value for specific theta.
+    /// Returns theta and K values for specified psi and psi value for specified 
+    /// theta based on selected soil hydrological model.
+    /// </summary>
+    public interface ISoilHydrology
+    {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="num_layers"></param>
+        void Setup(int num_layers);
+
+        /// <summary>
+        /// Return theta for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        double get_theta(int layer,  double h);
+
+        /// <summary>
+        /// Return K for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        double get_K(int layer, double h);
+
+        /// <summary>
+        /// Return pressure head for a specified water content.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="theta"></param>
+        /// <returns></returns>
+        double get_h(int layer, double theta);
+    }
+
+    /// <summary>
+    /// Set up hydraulic models for each layer.
+    /// </summary>
+    [Serializable]
+    [ViewName("UserInterface.View.ProfileView")]
+    [PresenterName("UserInterface.Presenters.ProfilePresenter")]
+    [ValidParent(ParentType = typeof(Soil))]
+    public class HydraulicModels : Model, ISoilHydrology
+    {
+        #region Internal States
+        private int n_soils;
+        int[] numSoils;
+        SoilHydraulicModels[] hydraulicModels;
+        #endregion
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="num_layers"></param>
+        public void Setup(int num_layers)
+        {
+            // TODO: combine layers of the same soil into one soil model.
+            n_soils = num_layers;
+            numSoils = new int[num_layers];
+
+            for (int n = 0; n < num_layers; ++n)
+            {
+                numSoils[n] = n;
+            }
+
+            hydraulicModels = new SoilHydraulicModels[n_soils];
+
+            for (int n = 0; n < n_soils; ++n)
+            {
+                hydraulicModels[n] = new SoilHydraulicModels();
+            }
+        }
+
+        /// <summary>
+        /// Return the water content for a layer for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="h"></param>
+        public double get_theta(int layer, double h)
+        {
+            return hydraulicModels[numSoils[layer]].get_theta(h);
+        }
+
+        /// <summary>
+        /// Return hydraulic conductivity for a layer for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        public double get_K(int layer, double h)
+        {
+            return hydraulicModels[numSoils[layer]].get_K(h);
+        }
+
+        /// <summary>
+        /// Return pressure head for a layer for a specified water content.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="theta"></param>
+        /// <returns></returns>
+        public double get_h(int layer, double theta)
+        {
+            return hydraulicModels[numSoils[layer]].get_h(theta);
+        }
+    }
+
+    /// <summary>
+    /// Returns theta and K values for specified psi and psi value for specified theta.
     /// The current implemented models include: van Genuchten - Mualem model (default) and modified van Genuchten model.
     /// The default soil type is loam if parameters are not provided.
     /// The input and output units are mm and day.
@@ -315,10 +425,10 @@ namespace Models.Soils
     [ViewName("UserInterface.View.ProfileView")]
     [PresenterName("UserInterface.Presenters.ProfilePresenter")]
     [ValidParent(ParentType = typeof(Soil))]
-    public class HydraulicModels : Model
+    public class SoilHydraulicModels : Model
     {
-        // public string model;
         #region Internal States
+        // public string model;
         private int iModel;
         private double theta_r = 0.078;
         private double theta_s = 0.43;
@@ -349,12 +459,14 @@ namespace Models.Soils
 
         #endregion
 
+        // TODO: do not use constructor.
+
         /// <summary>
         /// Initialize a soil hydraulic model for a soil.
         /// </summary>
         /// <param name="HydraulicModel"></param>
         /// <param name="Parameters"></param>
-        public HydraulicModels(string HydraulicModel = "van Genuchten", double[] Parameters = null)
+        public SoilHydraulicModels(string HydraulicModel = "van Genuchten", double[] Parameters = null)
         {
             if (HydraulicModel == "van Genuchten")
             {
@@ -419,7 +531,7 @@ namespace Models.Soils
         }
 
         /// <summary>
-        /// Return pressure head for a specific water content.
+        /// Return pressure head for a specified water content.
         /// </summary>
         /// <param name="theta"></param>
         /// <returns></returns>
@@ -438,7 +550,7 @@ namespace Models.Soils
         }
 
         /// <summary>
-        /// Return hydraulic conductivity for a specific pressure head.
+        /// Return hydraulic conductivity for a specified pressure head.
         /// </summary>
         /// <param name="h"></param>
         /// <returns></returns>
@@ -477,7 +589,7 @@ namespace Models.Soils
         }
 
         /// <summary>
-        /// Return the water content for a specific pressure head.
+        /// Return the water content for a specified pressure head.
         /// </summary>
         /// <param name="h"></param>
         /// <returns></returns>
@@ -499,6 +611,319 @@ namespace Models.Soils
                     // Throw an exception.
                     return theta_s;
             }
+        }
+    }
+
+
+    /// <summary>
+    /// Returns theta and K values for specified psi and psi value for specified theta.
+    /// This model uses the basic APSIM soil parameters.
+    /// Most of the methods are identical to the ones in SWIM_3, except get_h (Suction).
+    /// The input and output units are mm and day.
+    /// </summary>
+    [Serializable]
+    [ViewName("UserInterface.View.ProfileView")]
+    [PresenterName("UserInterface.Presenters.ProfilePresenter")]
+    [ValidParent(ParentType = typeof(Soil))]
+    public class SimpleHydraulicModel : Model, ISoilHydrology
+    {
+        #region External links
+        [Link]
+        private IPhysical soilPhysical = null;
+        #endregion
+
+        #region Internal States
+        const double psi_ll15 = -150000.0;
+        const double psiad = -1e7;
+        const double psi0 = -0.6e8;
+
+        private int num_layers;
+        private double[,] DELk;
+        private double[,] Mk;
+        private double[,] M0;
+        private double[,] M1;
+        private double[,] Y0;
+        private double[,] Y1;
+        private double[] MicroP;
+        private double[] MicroKs;
+        private double[] MacroP;
+        private double[] Kdula;
+        private double[] kdul;
+        private double[] psid;
+        #endregion
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void Setup(int layers)
+        {
+            // TODO: rename parameters.
+            num_layers = layers;
+
+            DELk = new double[num_layers, 4];
+            Mk = new double[num_layers, 4];
+            M0 = new double[num_layers, 5];
+            M1 = new double[num_layers, 5];
+            Y0 = new double[num_layers, 5];
+            Y1 = new double[num_layers, 5];
+            MicroP = new double[num_layers];
+            MicroKs = new double[num_layers];
+            MacroP = new double[num_layers];
+            kdul = new double[num_layers];
+            Kdula = new double[num_layers];
+            psid = new double[num_layers];
+
+            // TODO: kdul and psid should be input parameters.
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                kdul[layer] = 0.1;
+                psid[layer] = -3400.0;
+            }
+
+            SetupThetaCurve();
+            SetupKCurve();
+        }
+
+        /// <summary>
+        /// Initialise parameters for theta-psi calculation.
+        /// </summary>
+        private void SetupThetaCurve()
+        {
+            for (int layer = 0; layer < num_layers; layer++)
+            {
+                DELk[layer, 0] = (soilPhysical.DUL[layer] - soilPhysical.SAT[layer]) / (Math.Log10(-psid[layer]));
+                DELk[layer, 1] = (soilPhysical.LL15[layer] - soilPhysical.DUL[layer]) / (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+                DELk[layer, 2] = -soilPhysical.LL15[layer] / (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+                DELk[layer, 3] = -soilPhysical.LL15[layer] / (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+
+                Mk[layer, 0] = 0.0;
+                Mk[layer, 1] = (DELk[layer, 0] + DELk[layer, 1]) / 2.0;
+                Mk[layer, 2] = (DELk[layer, 1] + DELk[layer, 2]) / 2.0;
+                Mk[layer, 3] = DELk[layer, 3];
+
+                // First bit might not be monotonic so check and adjust
+                double alpha = Mk[layer, 0] / DELk[layer, 0];
+                double beta = Mk[layer, 1] / DELk[layer, 0];
+                double phi = alpha - (Math.Pow(2.0 * alpha + beta - 3.0, 2.0) / (3.0 * (alpha + beta - 2.0)));
+                if (phi <= 0)
+                {
+                    double tau = 3.0 / Math.Sqrt(alpha * alpha + beta * beta);
+                    Mk[layer, 0] = tau * alpha * DELk[layer, 0];
+                    Mk[layer, 1] = tau * beta * DELk[layer, 0];
+                }
+
+                M0[layer, 0] = 0.0;
+                M1[layer, 0] = 0.0;
+                Y0[layer, 0] = soilPhysical.SAT[layer];
+                Y1[layer, 0] = soilPhysical.SAT[layer];
+
+                M0[layer, 1] = Mk[layer, 0] * (Math.Log10(-psid[layer]) - 0.0);
+                M1[layer, 1] = Mk[layer, 1] * (Math.Log10(-psid[layer]) - 0.0);
+                Y0[layer, 1] = soilPhysical.SAT[layer];
+                Y1[layer, 1] = soilPhysical.DUL[layer];
+
+                M0[layer, 2] = Mk[layer, 1] * (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+                M1[layer, 2] = Mk[layer, 2] * (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+                Y0[layer, 2] = soilPhysical.DUL[layer];
+                Y1[layer, 2] = soilPhysical.LL15[layer];
+
+                M0[layer, 3] = Mk[layer, 2] * (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+                M1[layer, 3] = Mk[layer, 3] * (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+                Y0[layer, 3] = soilPhysical.LL15[layer];
+                Y1[layer, 3] = 0.0;
+
+                M0[layer, 4] = 0.0;
+                M1[layer, 4] = 0.0;
+                Y0[layer, 4] = 0.0;
+                Y1[layer, 4] = 0.0;
+            }
+        }
+
+        /// <summary>
+        /// Initialise parameters for K-psi calculation.
+        /// </summary>
+        private void SetupKCurve()
+        {
+            for (int layer = 0; layer < num_layers; layer++)
+            {
+                double b = -Math.Log(psid[layer] / psi_ll15) / Math.Log(soilPhysical.DUL[layer] / soilPhysical.LL15[layer]);
+                MicroP[layer] = b * 2.0 + 3.0;
+                Kdula[layer] = Math.Min(0.99 * kdul[layer], soilPhysical.KS[layer]);
+                MicroKs[layer] = Kdula[layer] / Math.Pow(soilPhysical.DUL[layer] / soilPhysical.SAT[layer], MicroP[layer]);
+
+                double Sdul = soilPhysical.DUL[layer] / soilPhysical.SAT[layer];
+                MacroP[layer] = Math.Log10(Kdula[layer] / 99.0 / (soilPhysical.KS[layer] - MicroKs[layer])) / Math.Log10(Sdul);
+            }
+        }
+
+        /// <summary>
+        /// Calculate saturation for a given node for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="psiValue"></param>
+        /// <returns></returns>
+        private double SimpleS(int layer, double psiValue)
+        {
+            //  Calculate S for a given node for a specified pressure head.
+            return get_theta(layer, psiValue) / soilPhysical.SAT[layer];
+        }
+
+        /// <summary>
+        /// Return pressure head for a specified water content.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="theta"></param>
+        /// <returns></returns>
+        public double get_h(int layer, double theta)
+        {
+            // TODO: this is a temporary implementation; improvement needed.
+            const int maxIterations = 1000;
+            const double tolerance = 1e-9;
+            // const double dpsi = 0.01;
+            double dpsi = 0.01;
+
+            double theta_up;
+            double theta_low;
+            double psi_up;
+            double psi_low;
+            double delta_old = dpsi;
+
+            // Temporary fix.
+            psi_up = 0.0;
+            theta_up = soilPhysical.SAT[layer];
+            psi_low = psid[layer];
+            theta_low = get_theta(layer, psi_low);
+            if (theta < theta_low)
+            {
+                psi_up = psi_low;
+                theta_up = theta_low;
+                psi_low = psi_ll15;
+                theta_low = get_theta(layer, psi_low);
+                if (theta < theta_low)
+                {
+                    psi_up = psi_low;
+                    theta_up = theta_low;
+                    psi_low = psi0;
+                    theta_low = get_theta(layer, psi_low);
+                }
+            }
+
+            if (theta >= soilPhysical.SAT[layer])
+                return 0.0;
+            else
+            {
+                double psiValue = -3400.0;
+                for (int iter = 0; iter < maxIterations; iter++)
+                {
+                    double est = get_theta(layer, psiValue);
+                    double m = (get_theta(layer, psiValue + dpsi) - est) / dpsi;
+                    double delta = (est - theta) / Math.Abs(est - theta) * Math.Max(dpsi, Math.Abs((est - theta) / m));
+                    if (MathUtilities.FloatsAreEqual(delta, -delta_old))
+                    {
+                        delta /= 2.0;
+                        dpsi /= 2.0;
+                    }
+                    delta_old = delta;
+                    double psi_temp = psiValue - delta;
+
+                    if (Math.Abs(est - theta) < tolerance)
+                        break;
+                    // psiValue -= Math.Min(-dpsi, (est - theta) / m);
+                    if (psi_temp > psi_up | psi_temp < psi_low)
+                    {
+                        if (est < theta)
+                        {
+                            psi_low = psiValue;
+                            theta_low = est;
+                            psiValue = (psiValue + psi_up) / 2;
+                        }
+                        else
+                        {
+                            psi_up = psiValue;
+                            theta_up = est;
+                            psiValue = (psiValue + psi_low) / 2;
+                        }
+                    }
+                    else
+                        psiValue = psi_temp;
+                }
+                if (psiValue > 0.0)
+                    System.Console.WriteLine("Error in psi.");
+                return psiValue;
+            }
+        }
+
+        /// <summary>
+        /// Return the water content for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        public double get_theta(int layer, double h)
+        {
+            int i;
+            double t;
+            double psiValue = h;
+
+            if (psiValue >= -1.0)
+            {
+                i = 0;
+                t = 0.0;
+            }
+            else if (psiValue > psid[layer])
+            {
+                i = 1;
+                t = (Math.Log10(-psiValue) - 0.0) / (Math.Log10(-psid[layer]) - 0.0);
+            }
+            else if (psiValue > psi_ll15)
+            {
+                i = 2;
+                t = (Math.Log10(-psiValue) - Math.Log10(-psid[layer])) / (Math.Log10(-psi_ll15) - Math.Log10(-psid[layer]));
+            }
+            else if (psiValue > psi0)
+            {
+                i = 3;
+                t = (Math.Log10(-psiValue) - Math.Log10(-psi_ll15)) / (Math.Log10(-psi0) - Math.Log10(-psi_ll15));
+            }
+            else
+            {
+                i = 4;
+                t = 0.0;
+            }
+
+            double tSqr = t * t;
+            double tCube = tSqr * t;
+
+            return (2 * tCube - 3 * tSqr + 1) * Y0[layer, i] + (tCube - 2 * tSqr + t) * M0[layer, i]
+                    + (-2 * tCube + 3 * tSqr) * Y1[layer, i] + (tCube - tSqr) * M1[layer, i];
+        }
+
+        /// <summary>
+        /// Return hydraulic conductivity for a specified pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        public double get_K(int layer, double h)
+        {
+            double S = SimpleS(layer, h);
+            double simpleK;
+
+            if (S <= 0.0)
+                simpleK = 1e-100;
+            else
+            {
+                double microK = MicroKs[layer] * Math.Pow(S, MicroP[layer]);
+
+                if (MicroKs[layer] >= soilPhysical.KS[layer])
+                    simpleK = microK;
+                else
+                {
+                    double macroK = (soilPhysical.KS[layer] - MicroKs[layer]) * Math.Pow(S, MacroP[layer]);
+                    simpleK = microK + macroK;
+                }
+            }
+            return simpleK;
         }
     }
 }
