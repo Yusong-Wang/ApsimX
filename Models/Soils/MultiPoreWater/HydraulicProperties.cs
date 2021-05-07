@@ -316,8 +316,9 @@ namespace Models.Soils
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="physical"></param>
         /// <param name="num_layers"></param>
-        void Setup(int num_layers);
+        void Setup(int num_layers, IPhysical physical);
 
         /// <summary>
         /// Return theta for a specified pressure head.
@@ -362,8 +363,9 @@ namespace Models.Soils
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="physical"></param>
         /// <param name="num_layers"></param>
-        public void Setup(int num_layers)
+        public void Setup(int num_layers, IPhysical physical)
         {
             // TODO: combine layers of the same soil into one soil model.
             n_soils = num_layers;
@@ -655,8 +657,9 @@ namespace Models.Soils
         /// <summary>
         /// 
         /// </summary>
-        public void Setup(int layers)
+        public void Setup(int layers, IPhysical physical )
         {
+            soilPhysical = physical;
             // TODO: rename parameters.
             num_layers = layers;
 
