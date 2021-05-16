@@ -397,6 +397,7 @@ namespace Models.Soils
                 {
                     parameters[i] = Libardi[n, i];
                 }
+                // parameters[4] = 2182;
                 hydraulicModels[n] = new SoilHydraulicModels("van Genuchten", parameters);
             }
         }
