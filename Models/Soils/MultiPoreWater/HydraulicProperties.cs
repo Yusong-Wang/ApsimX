@@ -378,9 +378,26 @@ namespace Models.Soils
 
             hydraulicModels = new SoilHydraulicModels[n_soils];
 
+            // Parameter set for Libardi drainage experiment
+            double[,] Libardi = new double[9, 6] { { 0.013, 0.43, 0.0182, 1.2499, 2182, 0.5 },
+                                                   { 0.0557, 0.457, 0.008, 1.2978, 3545, 0.5 },
+                                                   { 0.0847, 0.472, 0.009, 1.3744, 5530, 0.5 },
+                                                   { 0.0761, 0.491, 0.0049, 1.4975, 7341, 0.5 },
+                                                   { 0.1288, 0.491, 0.0066, 1.7472, 10441, 0.5 },
+                                                   { 0.0978, 0.487, 0.0096, 1.4832, 13070, 0.5 },
+                                                   { 0.1114, 0.468, 0.0077, 1.5375, 15663, 0.5 },
+                                                   { 0.0994, 0.472, 0.0054, 1.5759, 17311, 0.5 },
+                                                   { 0.0797, 0.483, 0.0064, 1.5084, 20234, 0.5 }};
+
+
             for (int n = 0; n < n_soils; ++n)
             {
-                hydraulicModels[n] = new SoilHydraulicModels();
+                double[] parameters = new double[6];
+                for (int i = 0; i < 6; ++i)
+                {
+                    parameters[i] = Libardi[n, i];
+                }
+                hydraulicModels[n] = new SoilHydraulicModels("van Genuchten", parameters);
             }
         }
 
@@ -919,11 +936,15 @@ namespace Models.Soils
                 double microK = MicroKs[layer] * Math.Pow(S, MicroP[layer]);
 
                 if (MicroKs[layer] >= soilPhysical.KS[layer])
-                    simpleK = microK;
+                {
+                    simpleK = soilPhysical.KS[layer];
+                    // simpleK = microK;
+                }
                 else
                 {
                     double macroK = (soilPhysical.KS[layer] - MicroKs[layer]) * Math.Pow(S, MacroP[layer]);
                     simpleK = microK + macroK;
+                    simpleK = Math.Min(simpleK, soilPhysical.KS[layer]);
                 }
             }
             return simpleK;
