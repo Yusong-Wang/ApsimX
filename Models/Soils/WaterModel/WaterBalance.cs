@@ -422,8 +422,8 @@
         /// <summary>Number of soil layers.</summary>
         private int num_layers { get { return soilPhysical.Thickness.Length; } }
 
-        ISoilHydrology hydraulicModel = new HydraulicModels();
-        // ISoilHydrology hydraulicModel = new SimpleHydraulicModel();
+        // ISoilHydrology hydraulicModel = new HydraulicModels();
+        ISoilHydrology hydraulicModel = new SimpleHydraulicModel();
 
         // Parameters at quadrature points
         // Consider encapsulate all parameters in a class/struct
@@ -886,7 +886,7 @@
         ///<summary>Perform initial calculations for hydraulic curves</summary>
         private void InitCalc()
         {
-            #region Test code
+            #region Debug code for hydraulic functions
             // *** Check calculated hydraulic parameters with van Genuchten model.
             //double h = -100.0;
 
@@ -965,6 +965,8 @@
             QK = new double[num_layers, num_points + 1];
             Qpsi = new double[num_layers, num_points + 1];
             QFlux = new double[num_layers, num_Qpoints - 1];
+
+            // Point 0 is the middle point representing the average values of the layer.
 
             if (quadrature_rule == "Gaussian")
             {
