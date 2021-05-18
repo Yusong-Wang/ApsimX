@@ -533,7 +533,8 @@
                 if (irrigation.Amount > 0)
                 {
                     int irrigationLayer = SoilUtilities.LayerIndexOfDepth(soilPhysical.Thickness, Convert.ToInt32(irrigation.Depth, CultureInfo.InvariantCulture));
-                    //Water[irrigationLayer] += irrigation.Amount;
+                    if (Convert.ToInt32(irrigation.Depth, CultureInfo.InvariantCulture) != 0)
+                        Water[irrigationLayer] += irrigation.Amount;
                     //if (irrigationLayer == 0)
                     //    Infiltration += irrigation.Amount;
 
@@ -576,8 +577,8 @@
 
             // Calculate evaporation and remove from top layer.
             // TODO: temporary remove evaporation for testing.
-            // double es = evaporationModel.Calculate();
-            // Water[0] = Water[0] - es;
+             double es = evaporationModel.Calculate();
+             Water[0] = Water[0] - es;
 
             // Calculate unsaturated flow of water and apply.
             //Flow = unsaturatedFlow.Values;
@@ -887,7 +888,7 @@
         private void InitCalc()
         {
             #region Debug code for hydraulic functions
-            // *** Check calculated hydraulic parameters with van Genuchten model.
+            // ***Check calculated hydraulic parameters with van Genuchten model.
             //double h = -100.0;
 
             //do
@@ -901,7 +902,7 @@
             //        K = hydraulicModel.get_K(layer, h);
             //        System.Console.WriteLine("layer: " + layer + ", h: " + h + ", theta: " + theta + ", K: " + K);
             //    }
-                
+
             //    System.Console.WriteLine("Enter another h or enter a negative number to exit.");
             //    str = System.Console.ReadLine();
             //    h = -Convert.ToDouble(str);
@@ -1385,6 +1386,8 @@
                     }
                 }
             }
+
+            // TODO: missing backup flow
 
             #endregion
 
