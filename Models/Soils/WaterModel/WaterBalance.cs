@@ -1297,6 +1297,7 @@
                             if (theta > theta_steps[istep, layer])
                             {
                                 available = (theta - theta_steps[istep, layer]) * soilPhysical.Thickness[layer];
+                                available *= Math.Min(1.0, K_steps[istep, layer] / soilPhysical.Thickness[layer]);
                                 if (available >= K_steps[istep, layer])
                                 {
                                     FlowType[layer + 1] = 2;
@@ -1351,6 +1352,7 @@
                             if (theta > theta_steps[istep, num_layers - 1])
                             {
                                 available = (theta - theta_steps[istep, num_layers - 1]) * soilPhysical.Thickness[num_layers - 1];
+                                available *= Math.Min(1.0, K_steps[istep, num_layers - 1] / soilPhysical.Thickness[num_layers - 1]);
                                 if (available >= K_steps[istep, num_layers - 1])
                                 {
                                     FlowType[num_layers] = 2;
@@ -1624,7 +1626,7 @@
                 Redistribute(layer + 1, matrixFlow, -1);
             }
 
-            if (QTheta[num_layers - 1, 0] > hydraulicModel.get_theta(num_layers - 1, PSIDul))
+            if (QTheta[num_layers - 1, 0] > soilPhysical.LL15[num_layers - 1])
             {
                 if (FlowType[num_layers] == 0)
                 {
