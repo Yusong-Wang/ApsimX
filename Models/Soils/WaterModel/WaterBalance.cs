@@ -422,7 +422,7 @@
         /// <summary>Number of soil layers.</summary>
         private int num_layers { get { return soilPhysical.Thickness.Length; } }
 
-        // ISoilHydrology hydraulicModel = new HydraulicModels();
+        //ISoilHydrology hydraulicModel = new HydraulicModels();
         ISoilHydrology hydraulicModel = new SimpleHydraulicModel();
 
         // Parameters at quadrature points
@@ -943,7 +943,7 @@
             OldWater = Water;
 
             QuadratureRule = "Gaussian";
-            num_Qpoints = 3;
+            num_Qpoints = 1;
 
             InitQuadrature(QuadratureRule, num_Qpoints);       
         }
@@ -1624,6 +1624,25 @@
                 Redistribute(layer + 1, matrixFlow, -1);
             }
 
+            if (QTheta[num_layers - 1, 0] > hydraulicModel.get_theta(num_layers - 1, PSIDul))
+            {
+                if (FlowType[num_layers] == 0)
+                {
+                    double matrixflow;
+
+                    matrixflow = UnsatFlow(num_layers - 1);
+                    MaxFlow = soilPhysical.KS[num_layers - 1];
+
+                    if (InterfaceFlow[num_layers] + matrixflow > MaxFlow)
+                        matrixflow = MaxFlow - InterfaceFlow[num_layers];
+                    matrixflow = Math.Max(0.0, matrixflow);
+
+                    InterfaceFlow[num_layers] += matrixflow;
+                    NewWater[num_layers - 1] -= matrixflow;
+                    Redistribute(num_layers - 1, matrixflow, 1);
+                }
+            }
+
             #endregion
 
             #region Gravitational and matrix flow?
@@ -2153,7 +2172,7 @@
             // and b) redistribution at the end.
 
             const double eff = 1;
-            double[] depth = new double[num_Qpoints];
+            double[] depth = new double[num_Qpoints + 1];
 
             // Mass balance
             double TotalWater_old = 0;
