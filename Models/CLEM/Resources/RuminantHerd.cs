@@ -9,6 +9,7 @@ using Models.Core;
 using Models.Core.Attributes;
 using Models.CLEM.Reporting;
 using System.Globalization;
+using Models.CLEM.Interfaces;
 
 namespace Models.CLEM.Resources
 {
@@ -236,9 +237,12 @@ namespace Models.CLEM.Resources
             Herd.Add(ind);
             LastIndividualChanged = ind;
 
+            // check mandatory attributes
+            ind.BreedParams.CheckMandatoryAttributes(ind, model);
+
             ResourceTransaction details = new ResourceTransaction
             {
-                Style = TransactionStyle.Gain,
+                TransactionType = TransactionType.Gain,
                 Amount = 1,
                 Activity = model as CLEMModel,
                 Category = ind.SaleFlag.ToString(),
@@ -284,7 +288,7 @@ namespace Models.CLEM.Resources
             // report transaction of herd change
             ResourceTransaction details = new ResourceTransaction
             {
-                Style = TransactionStyle.Loss,
+                TransactionType = TransactionType.Loss,
                 Amount = 1,
                 Activity = model as CLEMModel,
                 Category = ind.SaleFlag.ToString(),
@@ -309,6 +313,34 @@ namespace Models.CLEM.Resources
 
             // remove change flag
             ind.SaleFlag = HerdChangeReason.None;
+        }
+
+        /// <summary>
+        /// Statstical summar of a list of numbers (e.g. attribute values)
+        /// </summary>
+        [JsonIgnore]
+        public ListStatistics LastListStatistics { get; set; }
+
+        /// <summary>
+        /// Return the mean and standard deviation of an attribute value
+        /// </summary>
+        public int SummariseAttribute(string tag, bool ignoreNotFound)
+        {
+            LastListStatistics = new ListStatistics();
+            var values = Herd.Where( a => (ignoreNotFound & a.GetAttributeValue(tag) == null) ? false : true).Select(a => Convert.ToDouble(a.GetAttributeValue(tag)?.storedValue));
+            if (values.Count() == 0)
+            {
+                return 0;
+            }
+            double sd = 0;
+            double mean = values.Average();
+            double sum = values.Sum(d => Math.Pow(d - mean, 2));
+            sd = Math.Sqrt((sum) / values.Count() - 1);
+            LastListStatistics.Average = mean;
+            LastListStatistics.StandardDeviation = sd;
+            LastListStatistics.Count = values.Count();
+            LastListStatistics.Total = Herd.Count();
+            return Herd.Count();
         }
 
         /// <summary>
