@@ -1389,7 +1389,59 @@
                 }
             }
 
-            // TODO: missing backup flow
+            // Backup flow
+            for (int layer = num_layers - 1; layer > 0; --layer)
+            {
+                if (BackFlow[layer] > 0.0)
+                {
+                    if (FlowType[layer] > 0)
+                    {
+                        InterfaceFlow[layer] -= BackFlow[layer];
+
+                        if (InterfaceFlow[layer] < 0.0)
+                            FlowType[layer] = -2;
+                        else
+                            FlowType[layer] = 2;
+                    }
+                    else
+                    {
+                        InterfaceFlow[layer] = -BackFlow[layer];
+                        FlowType[layer] = -1;
+                    }
+
+                    NewWater[layer] -= BackFlow[layer];
+                    ExcessW[layer] -= BackFlow[layer];
+                    NewWater[layer - 1] += BackFlow[layer];
+
+                    if (BackFlow[layer - 1] > 0.0)
+                    {
+                        BackFlow[layer - 1] += BackFlow[layer];
+                        ExcessW[layer - 1] += BackFlow[layer];
+                    }
+                    else
+                    {
+                        Redistribute(layer - 1, -BackFlow[layer], 1);
+                        is_Saturated[layer - 1] = MathUtilities.IsGreaterThanOrEqual(NewWater[layer - 1] / soilPhysical.SATmm[layer - 1], 0.9999);
+                        BackFlow[layer - 1] = Math.Max(0.0, NewWater[layer - 1] - soilPhysical.SATmm[layer - 1]);
+                        ExcessW[layer - 1] = BackFlow[layer - 1];
+                    }
+                }
+            }
+
+            if (BackFlow[0] > 0.0)
+            {
+                InterfaceFlow[0] -= BackFlow[0];
+
+                NewWater[0] -= BackFlow[0];
+                ExcessW[0] -= BackFlow[0];
+            }
+
+            // Excess water should be 0 at the end.
+            for (int layer = 0; layer < num_layers; ++layer)
+            {
+                if (!MathUtilities.FloatsAreEqual(ExcessW[layer], 0.0, 1e-6))
+                    System.Console.WriteLine("Excess water is not 0 after forced flow.");
+            }
 
             #endregion
 
@@ -1626,7 +1678,7 @@
                 Redistribute(layer + 1, matrixFlow, -1);
             }
 
-            if (QTheta[num_layers - 1, 0] > soilPhysical.LL15[num_layers - 1])
+            if (QTheta[num_layers - 1, 0] > soilPhysical.DUL[num_layers - 1])
             {
                 if (FlowType[num_layers] == 0)
                 {
