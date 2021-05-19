@@ -1678,7 +1678,7 @@
                 Redistribute(layer + 1, matrixFlow, -1);
             }
 
-            if (QTheta[num_layers - 1, 0] > soilPhysical.DUL[num_layers - 1])
+            if (QTheta[num_layers - 1, 0] > soilPhysical.LL15[num_layers - 1])
             {
                 if (FlowType[num_layers] == 0)
                 {
@@ -2621,9 +2621,9 @@
                         
                         available = (QTheta[layer, 1] - soilPhysical.LL15[layer]) * QWeight[layer, 1] * soilPhysical.Thickness[layer];
                         available = Math.Max(0.0, available);
-                        if (flow <= available)
+                        if (-flow <= available)
                         {
-                            QTheta[layer, 1] -= flow / (QWeight[layer, 1] * soilPhysical.Thickness[layer]);
+                            QTheta[layer, 1] += flow / (QWeight[layer, 1] * soilPhysical.Thickness[layer]);
                             Qpsi[layer, 1] = hydraulicModel.get_h(layer, QTheta[layer, 1]);
                             QK[layer, 1] = hydraulicModel.get_K(layer, Qpsi[layer, 1]);
                         }
