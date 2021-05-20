@@ -84,35 +84,35 @@
         /// <param name="initialDepth">The initial depth.</param>
         public void Set(double initialDepth)
         {
-            double[] Thickness = soilPhysical.Thickness;
-            double[] SAT = MathUtilities.Multiply(soilPhysical.SAT, Thickness);
-            double[] DUL = MathUtilities.Multiply(soilPhysical.DUL, Thickness);
+            //double[] Thickness = soilPhysical.Thickness;
+            //double[] SAT = MathUtilities.Multiply(soilPhysical.SAT, Thickness);
+            //double[] DUL = MathUtilities.Multiply(soilPhysical.DUL, Thickness);
 
-            double fraction;
-            double top = 0.0;
-            double bottom = 0.0;
+            //double fraction;
+            //double top = 0.0;
+            //double bottom = 0.0;
 
-            for (int i = 0; i < soil.Water.Length; i++)
-            {
-                top = bottom;
-                bottom = bottom + soilPhysical.Thickness[i];
+            //for (int i = 0; i < soil.Water.Length; i++)
+            //{
+            //    top = bottom;
+            //    bottom = bottom + soilPhysical.Thickness[i];
                 
-                if (initialDepth >= bottom)
-                {
-                    //do nothing;
-                }
-                else if (initialDepth > top)
-                {
-                    //! top of water table is in this layer
-                    var drainableCapacity = SAT[i] - DUL[i];
-                    fraction = (bottom - initialDepth) / (bottom - top);
-                    soil.Water[i] = DUL[i] + fraction * drainableCapacity;
-                }
-                else
-                {
-                    soil.Water[i] = SAT[i];
-                }
-            }
+            //    if (initialDepth >= bottom)
+            //    {
+            //        //do nothing;
+            //    }
+            //    else if (initialDepth > top)
+            //    {
+            //        //! top of water table is in this layer
+            //        var drainableCapacity = SAT[i] - DUL[i];
+            //        fraction = (bottom - initialDepth) / (bottom - top);
+            //        soil.Water[i] = DUL[i] + fraction * drainableCapacity;
+            //    }
+            //    else
+            //    {
+            //        soil.Water[i] = SAT[i];
+            //    }
+            //}
 
             Depth = initialDepth;
         }

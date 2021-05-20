@@ -280,9 +280,12 @@
         [JsonIgnore]
         public double Evaporation { get { return evaporationModel.Es; } }
 
+        /// <summary>Indicate if WaterTable is active.</summary>
+        public bool iWaterTable { get; set; }
+
         /// <summary>Water table.</summary>
         [JsonIgnore]
-        public double WaterTable { get { return waterTableModel.Depth; } set { waterTableModel.Set(value); } }
+        public double WaterTable { get { return waterTableModel.Depth; } set { waterTableModel.Set(value); iWaterTable = true; } }
 
         /// <summary>Flux. Water moving down (mm).</summary>
         [JsonIgnore]
@@ -588,7 +591,7 @@
             //CheckForErrors();
 
             // Calculate water table depth.
-            waterTableModel.Calculate();
+            // waterTableModel.Calculate();
 
             //// Calculate and apply net solute movement.
             //double[] no3Up = CalculateNetSoluteMovement(no3Values, Water, Flow, SoluteFlowEfficiency);
@@ -1026,6 +1029,7 @@
         private void WaterFlow()
         {
             // TODO: include Pond calculation.
+            double boundary_pressure = 0.0;
             double[] Source = new double[num_layers];
             double[] BackFlow = new double[num_layers];
             double[] ExcessW = new double[num_layers];
@@ -1074,8 +1078,17 @@
             FlowType[0] = 1;
 
             // TODO: free drainage boundary assumed for the bottom; add other possibilities.
+            // TODO: upward flux boundary at bottom boundary (code -4).
 
-            for (int layer = 0; layer < num_layers; ++layer)
+            // Water table
+            if (iWaterTable)
+            {
+                boundary_pressure = soilPhysical.ThicknessCumulative[num_layers - 1] - WaterTable;
+                FlowType[num_layers] = -5;
+            }
+
+                // Subsurface irrigation
+                for (int layer = 0; layer < num_layers; ++layer)
             {
                 if (Source[layer] > 0.0)
                 {
@@ -1236,6 +1249,49 @@
 
             #endregion
 
+            #region Other bottom boundary
+            
+            if (iWaterTable)
+            {
+                // Calculate the current saturated boundary if water table is within the profile.
+                if (boundary_pressure > 0.0)
+                {
+                    // TODO: figure out what happens when WaterTable falls between layers.
+                    int watertableLayer = SoilUtilities.LayerIndexOfDepth(soilPhysical.Thickness, WaterTable);
+
+                    //for (int layer = num_layers - 1; layer > watertableLayer; --layer)
+                    //{
+                    //    FlowType[layer] = -5;
+                    //    if (NewWater[layer] < soilPhysical.SATmm[layer])
+                    //    {
+                    //        UpFlow = soilPhysical.SATmm[layer] - NewWater[layer];
+                    //        for (int ilayer = layer; ilayer < num_layers; ++ilayer)
+                    //        {
+                    //            InterfaceFlow[ilayer + 1] -= UpFlow;
+                    //        }
+                    //        NewWater[layer] = soilPhysical.SATmm[layer];
+                    //        Redistribute(layer, -UpFlow, 1);
+                    //    }
+                    //}
+
+                    //if (MathUtilities.FloatsAreEqual(soilPhysical.ThicknessCumulative[watertableLayer], WaterTable))
+                    //{
+                    //    boundary_pressure = 0.0;
+                    //}
+                    //else
+                    //{
+                    //    boundary_pressure = soilPhysical.ThicknessCumulative[watertableLayer] - WaterTable - soilPhysical.Thickness[watertableLayer];
+                    //    FlowType[watertableLayer] = -5;
+                    //}
+                }
+                else
+                {
+                    // Water table sits below the profile.
+
+                }
+
+            }
+            #endregion
 
             #region Stepwise drainage
 
@@ -1250,8 +1306,11 @@
                 double[,] theta_steps = new double[num_steps, num_layers];
                 double[,] K_steps = new double[num_steps, num_layers];
 
-                PSIDul = -3400.0;
-                KDul = 0.1;
+                if (PSIDul >= 0)
+                {
+                    PSIDul = -3400.0;
+                    KDul = 0.1;
+                }                
 
                 for (int step = 0; step < num_steps; ++step)
                 {
@@ -1385,6 +1444,10 @@
                         ExcessW[num_layers - 1] = 0.0;
                         Redistribute(num_layers - 1, flow, 1);
                         FlowType[num_layers] = 0;
+                    }
+                    else if (FlowType[num_layers] == -5)
+                    {
+
                     }
                 }
             }
@@ -2235,7 +2298,7 @@
             switch (method)
             {
                 case 0:
-                    // To adjust water content after root uptake.
+                    // To adjust water content after root uptake or soil evaporation.
 
                     double uptake;
                     double[] PAW = new double[num_Qpoints];
