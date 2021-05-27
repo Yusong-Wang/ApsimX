@@ -1029,7 +1029,7 @@
         private void WaterFlow()
         {
             // TODO: include Pond calculation.
-            double boundary_pressure = 0.0;
+            double[] psi_boundary = new double[num_layers + 1];
             double[] psi_eq = new double[num_layers + 1];
             double[] Source = new double[num_layers];
             double[] BackFlow = new double[num_layers];
@@ -1090,7 +1090,6 @@
             // Water table
             if (iWaterTable)
             {
-                boundary_pressure = soilPhysical.ThicknessCumulative[num_layers - 1] - WaterTable;
                 FlowType[num_layers] = -5;
             }
 
@@ -1269,10 +1268,13 @@
                 //double theta;
                 double psi;
                 double psi_bot;
-                double psi_end;
+                //double psi_end;
+                double psi_WF;
                 double[] psi_steps = new double[num_steps];
                 double[,] theta_steps = new double[num_steps, num_layers];
                 double[,] K_steps = new double[num_steps, num_layers];
+
+                psi_WF = -1000.0;
 
                 {
                     // TODO: test to decide whether to start from psi_dul, psi_airdry, or psi_ll15 and how many steps is optimal.
@@ -1300,7 +1302,7 @@
                     psi_eq[layer] = soilPhysical.ThicknessCumulative[layer] - soilPhysical.Thickness[layer] - WaterTable;
                 }
                 psi_eq[num_layers] = soilPhysical.ThicknessCumulative[num_layers - 1] - WaterTable;
-
+                psi_boundary[num_layers] = psi_eq[num_layers];
                 psi_bot = psi_eq[num_layers];
 
                 for (int layer = num_layers - 1; layer >= 0; --layer)
@@ -1311,40 +1313,79 @@
                         break;
                     else if (psi >= 0.0)
                     {
-                        psi_bot = psi;
+                        psi_bot -= soilPhysical.Thickness[layer];
                         continue;
                     }
 
-                    psi_end = psi_bot - 2 * soilPhysical.Thickness[layer];
-                    if (psi < psi_end)
+                    deficit = (hydraulicModel.get_theta(layer, psi_WF) - hydraulicModel.get_theta(layer, Qpsi[layer, 0])) * soilPhysical.Thickness[layer];
+                    grad = (psi_WF - psi_bot) / soilPhysical.Thickness[layer] * 2 + 1.0;
+
+                    if (psi_WF + soilPhysical.Thickness[layer] > psi_bot)
                     {
-                        // deficit = (hydraulicModel.get_theta(layer, psi_end) - QTheta[layer, 0]) * soilPhysical.Thickness[layer];
-                        deficit = GetDeficit(layer, psi_end);
-                        // *** underestimate the flow when it's close to water table.
-                        K_initial = hydraulicModel.get_K(layer, Qpsi[layer, 0]);
-                        K_end = hydraulicModel.get_K(layer, psi_end);
-                        grad = -1.0;
-                        flow = K_end * grad;
+                        deficit *= (psi_bot - psi_WF) / soilPhysical.Thickness[layer];
+                        grad *= (psi_bot - psi_WF) / soilPhysical.Thickness[layer] + 1.0;
+                    }
 
-                        // Wetting front not reaching the top of this layer.
-                        if (-flow > deficit)
-                            flow = -deficit;
+                    K_initial = hydraulicModel.get_K(layer, psi_bot);
+                    flow = K_initial * grad;
 
+                    if (-flow > deficit)
+                    {
+                        InterfaceFlow[layer + 1] += -deficit;
+                        NewWater[layer] -= -deficit;
+                        Redistribute(layer, -deficit, 1);
+
+                        for (int ilayer = layer; ilayer < num_layers - 1; ++ilayer)
+                        {
+                            // Assume that enough water can be supplied from lower layers.
+                            // Ignored that possibility of a low permeability layer.
+                            InterfaceFlow[ilayer + 2] += -deficit;
+                        }
+                    }
+                    else
+                    {
                         InterfaceFlow[layer + 1] += flow;
                         NewWater[layer] -= flow;
                         Redistribute(layer, flow, 1);
 
                         for (int ilayer = layer; ilayer < num_layers - 1; ++ilayer)
                         {
-                            // Assume that enough water can be supplied from lower layers.
-                            // Ignored that possibility of a low permeability layer.
-
-                            InterfaceFlow[layer + 2] += flow;
+                            InterfaceFlow[ilayer + 2] += flow;
                         }
 
-                        if (-flow < deficit)
-                            break;
+                        break;
                     }
+
+                    //psi_end = psi_bot - 2 * soilPhysical.Thickness[layer];
+                    //if (psi < psi_end)
+                    //{
+                    //    // deficit = (hydraulicModel.get_theta(layer, psi_end) - QTheta[layer, 0]) * soilPhysical.Thickness[layer];
+                    //    deficit = GetDeficit(layer, psi_end);
+                    //    // *** underestimate the flow when it's close to water table. 
+                    //    K_initial = hydraulicModel.get_K(layer, Qpsi[layer, 0]);
+                    //    K_end = hydraulicModel.get_K(layer, psi_end);
+                    //    grad = -1.0;
+                    //    flow = K_end * grad;
+
+                    //    // Wetting front not reaching the top of this layer.
+                    //    if (-flow > deficit)
+                    //        flow = -deficit;
+
+                    //    InterfaceFlow[layer + 1] += flow;
+                    //    NewWater[layer] -= flow;
+                    //    Redistribute(layer, flow, 1);
+
+                    //    for (int ilayer = layer; ilayer < num_layers - 1; ++ilayer)
+                    //    {
+                    //        // Assume that enough water can be supplied from lower layers.
+                    //        // Ignored that possibility of a low permeability layer.
+
+                    //        InterfaceFlow[layer + 2] += flow;
+                    //    }
+
+                    //    if (-flow < deficit)
+                    //        break;
+                    //}
 
                     // Wetting front reached the top; stage two.
                     deficit = GetDeficit(layer, psi_eq[layer]);
@@ -1366,7 +1407,7 @@
                         // Assume that enough water can be supplied from lower layers.
                         // Ignored that possibility of a low permeability layer.
 
-                        InterfaceFlow[layer + 1] += flow;
+                        InterfaceFlow[ilayer + 2] += flow;
                     }
 
                     if (NewWater[layer] >= soilPhysical.SATmm[layer])
@@ -1377,16 +1418,18 @@
                     {
                         psi_bot = GetPressure(layer);
                     }
+                    FlowType[layer] = -5;
+                    psi_boundary[layer] = psi_bot;
                 }
 
                 // Test GetPressure function
-                for (int n = 0; n < 20; ++n)
-                {
-                    QTheta[3, 0] = soilPhysical.SAT[3] - 0.001 * n;
-                    Qpsi[3, 0] = hydraulicModel.get_h(3, QTheta[3, 0]);
-                    double psi_c = GetPressure(3);
-                    System.Console.WriteLine("Top pressure equals to: " + psi_c + " for theta: " + QTheta[3, 0]);
-                }
+                //for (int n = 0; n < 20; ++n)
+                //{
+                //    QTheta[3, 0] = soilPhysical.SAT[3] - 0.001 * n;
+                //    Qpsi[3, 0] = hydraulicModel.get_h(3, QTheta[3, 0]);
+                //    double psi_c = GetPressure(3);
+                //    System.Console.WriteLine("Top pressure equals to: " + psi_c + " for theta: " + QTheta[3, 0]);
+                //}
 
                 // Matrix upward flow: layer by layer, step (pressure head) by step.
                 //for (int layer = num_layers - 1; layer >= 0; --layer)
