@@ -1148,6 +1148,7 @@
                     }
 
                     NewWater[layer] -= InterfaceFlow[layer + 1];
+                    ExcessW[layer] -= InterfaceFlow[layer + 1];
                     NewWater[layer + 1] += InterfaceFlow[layer + 1];
                     if (ExcessW[layer + 1] > 0.0)
                         ExcessW[layer + 1] += InterfaceFlow[layer + 1];
@@ -1277,10 +1278,7 @@
                 psi_WF = -1000.0;
 
                 {
-                    // TODO: test to decide whether to start from psi_dul, psi_airdry, or psi_ll15 and how many steps is optimal.
                     // Very sharp wetting front expected.
-                    // psi_steps[0] = -150000.0;
-                    // psi_steps[1] = -15000.0;
                     for (int step = 0; step < num_steps - 1; ++step)
                     {
                         psi_steps[step] = -3400.0 / Math.Pow(2, step);
@@ -1309,11 +1307,14 @@
                 {
                     psi = GetPressure(layer);
 
-                    if (psi + soilPhysical.Thickness[layer] >= psi_bot)
-                        break;
-                    else if (psi >= 0.0)
+                    if (psi + soilPhysical.Thickness[layer] >= psi_bot || psi >= 0.0)
                     {
                         psi_bot -= soilPhysical.Thickness[layer];
+                        if (layer != 0)
+                        {
+                            FlowType[layer] = -5;
+                            psi_boundary[layer] = psi_eq[layer];
+                        }
                         continue;
                     }
 
@@ -1329,7 +1330,7 @@
                     K_initial = hydraulicModel.get_K(layer, psi_bot);
                     flow = K_initial * grad;
 
-                    if (-flow > deficit)
+                    if (-flow >= deficit)
                     {
                         InterfaceFlow[layer + 1] += -deficit;
                         NewWater[layer] -= -deficit;
@@ -1355,37 +1356,6 @@
 
                         break;
                     }
-
-                    //psi_end = psi_bot - 2 * soilPhysical.Thickness[layer];
-                    //if (psi < psi_end)
-                    //{
-                    //    // deficit = (hydraulicModel.get_theta(layer, psi_end) - QTheta[layer, 0]) * soilPhysical.Thickness[layer];
-                    //    deficit = GetDeficit(layer, psi_end);
-                    //    // *** underestimate the flow when it's close to water table. 
-                    //    K_initial = hydraulicModel.get_K(layer, Qpsi[layer, 0]);
-                    //    K_end = hydraulicModel.get_K(layer, psi_end);
-                    //    grad = -1.0;
-                    //    flow = K_end * grad;
-
-                    //    // Wetting front not reaching the top of this layer.
-                    //    if (-flow > deficit)
-                    //        flow = -deficit;
-
-                    //    InterfaceFlow[layer + 1] += flow;
-                    //    NewWater[layer] -= flow;
-                    //    Redistribute(layer, flow, 1);
-
-                    //    for (int ilayer = layer; ilayer < num_layers - 1; ++ilayer)
-                    //    {
-                    //        // Assume that enough water can be supplied from lower layers.
-                    //        // Ignored that possibility of a low permeability layer.
-
-                    //        InterfaceFlow[layer + 2] += flow;
-                    //    }
-
-                    //    if (-flow < deficit)
-                    //        break;
-                    //}
 
                     // Wetting front reached the top; stage two.
                     deficit = GetDeficit(layer, psi_eq[layer]);
@@ -1422,6 +1392,17 @@
                     psi_boundary[layer] = psi_bot;
                 }
 
+                // Check if any layer above wetting front marked as -5. 
+                // This may happen when there is infiltration or irrigation.
+                for (int layer = num_layers - 1; layer > 0; --layer)
+                {
+                    if (FlowType[layer + 1] != -5 && FlowType[layer] == -5)
+                    {
+                        FlowType[layer] = 0;
+                        System.Console.WriteLine("Wetting front gap exists.");
+                    }
+                }
+
                 // Test GetPressure function
                 //for (int n = 0; n < 20; ++n)
                 //{
@@ -1431,103 +1412,12 @@
                 //    System.Console.WriteLine("Top pressure equals to: " + psi_c + " for theta: " + QTheta[3, 0]);
                 //}
 
-                // Matrix upward flow: layer by layer, step (pressure head) by step.
-                //for (int layer = num_layers - 1; layer >= 0; --layer)
-                //{
-                //    psi = GetPressure(layer);
-                //    if (psi_bot > 0.0)
-                //    {
-                //        if (MathUtilities.FloatsAreEqual(QTheta[layer, 0], soilPhysical.SAT[layer]))
-                //        {
-                //            if (psi_bot >= soilPhysical.Thickness[layer])
-                //            {
-                //                // This layer is fully saturated, update the top pressure head to equilibrium with the bottom pressure head.
-                //                psi_bot -= soilPhysical.Thickness[layer];
-                //                continue;
-                //            }
-                //            else
-                //                break;
-                //        }
-                //        else
-                //        {
-                //            for (int step = 0; step < num_steps; ++step)
-                //            {
-                //                if (Qpsi[layer, 0] > psi_steps[step])
-                //                    continue;
-                //                K_initial = hydraulicModel.get_K(layer, Qpsi[layer, 0]);
-                //                if (psi_eq[layer] < psi_steps[step])
-                //                {
-                //                    deficit = (hydraulicModel.get_theta(layer, psi_eq[layer]) - QTheta[layer, 0]) * soilPhysical.Thickness[layer];
-                //                    K_end = hydraulicModel.get_K(layer, psi_eq[layer]);
-                //                    grad = (Qpsi[layer, 0] - soilPhysical.Thickness[layer] / 2 - psi_eq[layer]) / soilPhysical.Thickness[layer] / 2;
-                //                }
-                //                else
-                //                {
-                //                    deficit = (hydraulicModel.get_theta(layer, psi_steps[step]) - QTheta[layer, 0]) * soilPhysical.Thickness[layer];
-                //                    K_end = hydraulicModel.get_K(layer, psi_steps[step]);
-                //                    grad = (Qpsi[layer, 0] - soilPhysical.Thickness[layer] / 2 - psi_steps[step]) / soilPhysical.Thickness[layer] / 2;
-                //                }
-
-                //                flow = (K_initial + K_end) / 2 * grad;
-                //            }
-                //        }
-                //    }
-                //    else
-                //    {
-
-                //    }
-
-                //    for (int step = 0; step < num_steps; ++step)
-                //    {
-
-                //        if (Qpsi[layer, 0] + soilPhysical.Thickness[layer] / 2.0 > psi_steps[step])
-                //            break;
-                //    }
-                //}
-
-                //// Calculate the current saturated boundary if water table is within the profile.
-                //if (boundary_pressure > 0.0)
-                //{
-                //    // TODO: figure out what happens when WaterTable falls between layers.
-                //    int watertableLayer = SoilUtilities.LayerIndexOfDepth(soilPhysical.Thickness, WaterTable);
-
-                //    //for (int layer = num_layers - 1; layer > watertableLayer; --layer)
-                //    //{
-                //    //    FlowType[layer] = -5;
-                //    //    if (NewWater[layer] < soilPhysical.SATmm[layer])
-                //    //    {
-                //    //        UpFlow = soilPhysical.SATmm[layer] - NewWater[layer];
-                //    //        for (int ilayer = layer; ilayer < num_layers; ++ilayer)
-                //    //        {
-                //    //            InterfaceFlow[ilayer + 1] -= UpFlow;
-                //    //        }
-                //    //        NewWater[layer] = soilPhysical.SATmm[layer];
-                //    //        Redistribute(layer, -UpFlow, 1);
-                //    //    }
-                //    //}
-
-                //    //if (MathUtilities.FloatsAreEqual(soilPhysical.ThicknessCumulative[watertableLayer], WaterTable))
-                //    //{
-                //    //    boundary_pressure = 0.0;
-                //    //}
-                //    //else
-                //    //{
-                //    //    boundary_pressure = soilPhysical.ThicknessCumulative[watertableLayer] - WaterTable - soilPhysical.Thickness[watertableLayer];
-                //    //    FlowType[watertableLayer] = -5;
-                //    //}
-                //}
-                //else
-                //{
-                //    // Water table sits below the profile.
-
-                //}
-
             }
             #endregion
 
             #region Stepwise drainage
 
-            if (FlowType[num_layers] == 0)
+            if (FlowType[num_layers] == 0 || FlowType[num_layers] == -5)
             {
                 int num_steps = 5;
                 double available;
@@ -1566,31 +1456,72 @@
                 {
                     for (int layer = 0; layer < num_layers - 1; ++layer)
                     {
-                        if (FlowType[layer + 1] > 2 || FlowType[layer + 1] < 0)
-                            continue;
-
-                        FlowType[layer + 1] = 0;
-                        flow = ExcessW[layer];
-                        K_initial = QK[layer, 0];
-                        theta = QTheta[layer, 0];
-
-                        for (int istep = 0; istep <= step; ++istep)
+                        if (FlowType[layer + 1] == -5)
                         {
-                            if (FlowType[layer + 1] > 1)
-                                break;
+                            flow = ExcessW[layer];
+                            K_initial = QK[layer, 0];
+                            theta = QTheta[layer, 0];
 
-                            if (theta > theta_steps[istep, layer])
+                            for (int istep = 0; istep <= step; ++istep)
                             {
-                                available = (theta - theta_steps[istep, layer]) * soilPhysical.Thickness[layer];
-                                available *= Math.Min(1.0, K_steps[istep, layer] / soilPhysical.Thickness[layer]);
-                                if (available >= K_steps[istep, layer])
+                                if (theta > theta_steps[istep, layer])
                                 {
-                                    FlowType[layer + 1] = 2;
-                                    available = K_steps[istep, layer];
+                                    if (psi_boundary[layer + 1] - soilPhysical.Thickness[layer] >= psi_steps[istep])
+                                    {
+                                        break;
+                                    }
+                                    
+                                    if (psi_boundary[layer + 1] < psi_steps[istep])
+                                    {
+                                        available = (theta - theta_steps[istep, layer]) * soilPhysical.Thickness[layer];
+                                    }
+                                    else
+                                    {
+                                        available = (theta - GetTheta(layer, psi_boundary[layer + 1])) * soilPhysical.Thickness[layer];
+                                    }
+
+                                    // TODO: rethink about this limitation (also in the following part)
+                                    // available *= Math.Min(1.0, K_steps[istep, layer] / soilPhysical.Thickness[layer]);
+                                    available = Math.Max(0.0, available);
+                                    if (available >= K_steps[istep, layer])
+                                    {
+                                        available = K_steps[istep, layer];
+                                        // TODO: check if removal of the exit condition affects anything.
+                                    }
+                                    flow += available;
+                                    theta -= available / soilPhysical.Thickness[layer];
                                 }
-                                flow += available;
-                                theta -= available / soilPhysical.Thickness[layer];
                             }
+                        }
+                        else
+                        {
+                            if (FlowType[layer + 1] > 2 || FlowType[layer + 1] < 0)
+                                continue;
+
+                            FlowType[layer + 1] = 0;
+                            flow = ExcessW[layer];
+                            K_initial = QK[layer, 0];
+                            theta = QTheta[layer, 0];
+
+                            for (int istep = 0; istep <= step; ++istep)
+                            {
+                                if (FlowType[layer + 1] > 1)
+                                    break;
+
+                                if (theta > theta_steps[istep, layer])
+                                {
+                                    available = (theta - theta_steps[istep, layer]) * soilPhysical.Thickness[layer];
+                                    available *= Math.Min(1.0, K_steps[istep, layer] / soilPhysical.Thickness[layer]);
+                                    if (available >= K_steps[istep, layer])
+                                    {
+                                        FlowType[layer + 1] = 2;
+                                        available = K_steps[istep, layer];
+                                    }
+                                    flow += available;
+                                    theta -= available / soilPhysical.Thickness[layer];
+                                }
+                            }
+
                         }
 
                         if (flow > K_initial)
@@ -1609,10 +1540,13 @@
                         if (flow < ExcessW[layer])
                         {
                             BackFlow[layer] += ExcessW[layer] - flow;
-                            if (InterfaceFlow[layer + 1] >= 0.0)
-                                FlowType[layer + 1] = 3;
-                            else
-                                FlowType[layer + 1] = -3;
+                            if (FlowType[layer + 1] != -5)
+                            {
+                                if (InterfaceFlow[layer + 1] >= 0.0)
+                                    FlowType[layer + 1] = 3;
+                                else
+                                    FlowType[layer + 1] = -3;
+                            }
                         }
 
                         NewWater[layer] -= flow;
@@ -1621,6 +1555,23 @@
                         NewWater[layer + 1] += flow;
                         Redistribute(layer + 1, flow, -1);
                         ExcessW[layer + 1] = Math.Max(0.0, NewWater[layer + 1] - soilPhysical.SATmm[layer + 1]);
+
+                        if (FlowType[layer + 2] == -5)
+                        {
+                            if (layer < num_layers - 2)
+                            {
+                                double psi = Math.Max(psi_eq[layer + 2], psi_boundary[layer + 3] - soilPhysical.Thickness[layer + 2]);
+                                if (QTheta[layer + 1, 0] >= GetTheta(layer + 1, psi))
+                                {
+                                    psi_boundary[layer + 2] = psi;
+                                }
+                                else
+                                {
+                                    psi_boundary[layer + 2] = Math.Max(psi_boundary[layer + 2], Qpsi[layer, 0] + soilPhysical.Thickness[layer + 1] / 2.0);
+                                    // TODO: check if drainage in the next layer still happens when it shouldn't.
+                                }
+                            }
+                        }
                     }
 
                     if (FlowType[num_layers] == 0)
@@ -1673,7 +1624,60 @@
                     }
                     else if (FlowType[num_layers] == -5)
                     {
+                        flow = ExcessW[num_layers - 1];
+                        K_initial = QK[num_layers - 1, 0];
+                        theta = QTheta[num_layers - 1, 0];
 
+                        for (int istep = 0; istep <= step; ++istep)
+                        {
+                            if (theta > theta_steps[istep, num_layers - 1])
+                            {
+                                if (psi_boundary[num_layers] - soilPhysical.Thickness[num_layers - 1] >= psi_steps[istep])
+                                {
+                                    break;
+                                }
+
+                                if (psi_boundary[num_layers] < psi_steps[istep])
+                                {
+                                    available = (theta - theta_steps[istep, num_layers - 1]) * soilPhysical.Thickness[num_layers - 1];
+                                }
+                                else
+                                {
+                                    available = (theta - GetTheta(num_layers - 1, psi_boundary[num_layers])) * soilPhysical.Thickness[num_layers - 1];
+                                }
+                                
+                                available *= Math.Min(1.0, K_steps[istep, num_layers - 1] / soilPhysical.Thickness[num_layers - 1]);
+                                if (available >= K_steps[istep, num_layers - 1])
+                                {
+                                    FlowType[num_layers] = 2;
+                                    available = K_steps[istep, num_layers - 1];
+                                }
+                                flow += available;
+                                theta -= available / soilPhysical.Thickness[num_layers - 1];
+                            }
+                        }
+
+                        if (flow > K_initial)
+                            flow = K_initial;
+
+                        if (InterfaceFlow[num_layers] + flow > soilPhysical.KS[num_layers - 1])
+                        {
+                            InterfaceFlow[num_layers] = Math.Max(InterfaceFlow[num_layers], soilPhysical.KS[num_layers - 1]);
+                            flow = Math.Max(0.0, soilPhysical.KS[num_layers - 1] - InterfaceFlow[num_layers]);
+                        }
+                        else
+                        {
+                            InterfaceFlow[num_layers] += flow;
+                        }
+
+                        if (flow < ExcessW[num_layers - 1])
+                        {
+                            BackFlow[num_layers - 1] += ExcessW[num_layers - 1] - flow;
+                        }
+
+                        NewWater[num_layers - 1] -= flow;
+                        ExcessW[num_layers - 1] = 0.0;
+                        Redistribute(num_layers - 1, flow, 1);
                     }
                 }
             }
@@ -1988,7 +1992,7 @@
 
             #endregion
 
-            #region Gravitational and matrix flow?
+            #region Gravitational and matrix flow? Not in use
 
             //// Calculate flow using the initial status, which will be the max flow for that interface (within and between layers).
             //for (int layer = 0; layer < num_layers; ++layer)
@@ -3164,6 +3168,27 @@
             }
 
             return deficit;
+        }
+
+        /// <summary>
+        /// Return the average theta value for the layer when it equilibriums to a bottom boundary pressure head.
+        /// </summary>
+        /// <param name="layer"></param>
+        /// <param name="psi_bot"></param>
+        /// <returns></returns>
+        private double GetTheta(int layer, double psi_bot)
+        {
+            // TODO: optimize this method
+            double thickness;
+            thickness = soilPhysical.Thickness[layer];
+
+            if (psi_bot >= thickness)
+                return soilPhysical.SAT[layer];
+
+            if (psi_bot <= 0.0)
+                return hydraulicModel.get_theta(layer, psi_bot - thickness / 2.0);
+
+            return psi_bot * soilPhysical.SAT[layer] - (thickness - psi_bot) * hydraulicModel.get_theta(layer, (psi_bot - thickness) / 2.0);
         }
     }
 }
