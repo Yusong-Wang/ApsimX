@@ -588,7 +588,7 @@
             //MoveUp(Water, Flow);
 
             // Check for errors in water variables.
-            //CheckForErrors();
+            CheckForErrors();
 
             // Calculate water table depth.
             // waterTableModel.Calculate();
@@ -1261,6 +1261,7 @@
             if (iWaterTable)
             {
                 int num_steps = 6;
+                double timeRemained = 1.0;
                 double deficit;
                 double flow;
                 double K_initial;
@@ -1317,18 +1318,21 @@
                         }
                         continue;
                     }
+                    if (psi_WF >= psi_bot)
+                        break;
 
                     deficit = (hydraulicModel.get_theta(layer, psi_WF) - hydraulicModel.get_theta(layer, Qpsi[layer, 0])) * soilPhysical.Thickness[layer];
+                    deficit = Math.Max(0.0, deficit);
                     grad = (psi_WF - psi_bot) / soilPhysical.Thickness[layer] * 2 + 1.0;
 
                     if (psi_WF + soilPhysical.Thickness[layer] > psi_bot)
                     {
                         deficit *= (psi_bot - psi_WF) / soilPhysical.Thickness[layer];
-                        grad *= (psi_bot - psi_WF) / soilPhysical.Thickness[layer] + 1.0;
+                        grad = -1.0;
                     }
 
                     K_initial = hydraulicModel.get_K(layer, psi_bot);
-                    flow = K_initial * grad;
+                    flow = K_initial * grad * timeRemained;
 
                     if (-flow >= deficit)
                     {
@@ -1342,6 +1346,10 @@
                             // Ignored that possibility of a low permeability layer.
                             InterfaceFlow[ilayer + 2] += -deficit;
                         }
+
+                        timeRemained -= -deficit / flow;
+                        if (timeRemained <= 0.0)
+                            break;
                     }
                     else
                     {
@@ -1364,7 +1372,7 @@
                     grad = (Qpsi[layer, 0] - psi_bot) / (soilPhysical.Thickness[layer] / 2.0) + 1.0;
                     if (grad > 0.0)
                         break;
-                    flow = (K_initial + K_end) / 2.0 * grad;
+                    flow = (K_initial + K_end) / 2.0 * grad * timeRemained;
                     if (-flow > deficit)
                         flow = -deficit;
 
@@ -1481,7 +1489,8 @@
                                     }
 
                                     // TODO: rethink about this limitation (also in the following part)
-                                    // available *= Math.Min(1.0, K_steps[istep, layer] / soilPhysical.Thickness[layer]);
+                                    // 
+                                    available *= Math.Min(1.0, K_steps[istep, layer] /QTheta[layer, 0] / soilPhysical.Thickness[layer]);
                                     available = Math.Max(0.0, available);
                                     if (available >= K_steps[istep, layer])
                                     {
@@ -1511,7 +1520,7 @@
                                 if (theta > theta_steps[istep, layer])
                                 {
                                     available = (theta - theta_steps[istep, layer]) * soilPhysical.Thickness[layer];
-                                    available *= Math.Min(1.0, K_steps[istep, layer] / soilPhysical.Thickness[layer]);
+                                    available *= Math.Min(1.0, K_steps[istep, layer] / QTheta[layer, 0]/ soilPhysical.Thickness[layer]);
                                     if (available >= K_steps[istep, layer])
                                     {
                                         FlowType[layer + 1] = 2;
@@ -2506,6 +2515,31 @@
             //}
 
             #endregion
+
+            // Calculate current water table.
+            if (iWaterTable)
+            {
+                double depth = 0.0;
+
+                if (WaterTable < soilPhysical.ThicknessCumulative[num_layers - 1])
+                {
+                    for (int layer = num_layers - 1; layer >= 0; --layer)
+                    {
+                        if (MathUtilities.FloatsAreEqual(QTheta[layer, 0], soilPhysical.SAT[layer]))
+                            depth += soilPhysical.Thickness[layer];
+                        else
+                        {
+                            depth += Math.Max(0.0, GetPressure(layer) + soilPhysical.Thickness[layer]);
+                            break;
+                        }
+                    }
+
+                    if (depth > 0.0)
+                        WaterTable = soilPhysical.ThicknessCumulative[num_layers - 1] - depth;
+                    else
+                        WaterTable = soilPhysical.ThicknessCumulative[num_layers - 1];
+                }
+            }
         }
 
         /// <summary>
